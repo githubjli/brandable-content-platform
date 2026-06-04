@@ -1,0 +1,9 @@
+# JWT private key — never commit
+django/config/keys/jwt_private.pem
+*.pyc
+__pycache__/
+*.egg-info/
+.venv/
+dist/
+.env
+.env.local

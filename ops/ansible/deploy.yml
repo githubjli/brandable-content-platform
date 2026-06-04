@@ -1,0 +1,55 @@
+---
+# Ansible playbook for deploying brandable-content-platform to staging/production.
+# Usage: ansible-playbook ops/ansible/deploy.yml --extra-vars "env=staging branch=main"
+
+- name: Deploy brandable-content-platform
+  hosts: "{{ env | default('staging') }}"
+  become: true
+  vars:
+    app_dir: /opt/brandable-content-platform
+    branch: "{{ branch | default('main') }}"
+    service_name: brandable-django
+    python_bin: /opt/brandable-venv/bin/python
+
+  tasks:
+    - name: Pull latest code
+      git:
+        repo: "{{ git_repo | default('git@github.com:your-org/brandable-content-platform.git') }}"
+        dest: "{{ app_dir }}"
+        version: "{{ branch }}"
+        force: true
+
+    - name: Install Python dependencies
+      command: "uv pip install --system -e .[dev]"
+      args:
+        chdir: "{{ app_dir }}"
+
+    - name: Run Django migrations
+      command: "{{ python_bin }} manage.py migrate --no-input"
+      args:
+        chdir: "{{ app_dir }}/django"
+      environment:
+        DJANGO_SETTINGS_MODULE: config.settings.{{ env | default('staging') }}
+
+    - name: Collect static files
+      command: "{{ python_bin }} manage.py collectstatic --no-input"
+      args:
+        chdir: "{{ app_dir }}/django"
+      environment:
+        DJANGO_SETTINGS_MODULE: config.settings.{{ env | default('staging') }}
+
+    - name: Restart Django service
+      systemd:
+        name: "{{ service_name }}"
+        state: restarted
+        daemon_reload: true
+
+    - name: Wait for Django to become healthy
+      uri:
+        url: "http://localhost:8000/api/v1/health"
+        method: GET
+        status_code: 200
+      register: health_check
+      retries: 10
+      delay: 3
+      until: health_check.status == 200

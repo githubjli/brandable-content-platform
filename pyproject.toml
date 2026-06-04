@@ -1,0 +1,140 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+# django/ is a project root, not a distributable Python package.
+# pip install -e ".[dev]" installs all dependencies without packaging any source.
+py-modules = []
+
+[project]
+name = "brandable-content-platform"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "django>=5.1,<6",
+    "djangorestframework>=3.15",
+    "django-cors-headers>=4.3",
+    "psycopg[binary]>=3.1",
+    "redis>=5.0",
+    "celery>=5.3",
+    "opentelemetry-sdk>=1.24",
+    "opentelemetry-instrumentation-django>=0.45b0",
+    "opentelemetry-instrumentation-psycopg>=0.45b0",
+    "opentelemetry-instrumentation-redis>=0.45b0",
+    "opentelemetry-exporter-otlp>=1.24",
+    "grpcio>=1.62",
+    "grpcio-tools>=1.62",
+    "protobuf>=4.25",
+    "pyjwt[crypto]>=2.8",
+    "python-dotenv>=1.0",
+    "gunicorn>=21.2",
+    "uvicorn[standard]>=0.27",
+    "cryptography>=42.0",
+    "dj-database-url>=2.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-django>=4.8",
+    "pytest-cov>=5.0",
+    "ruff>=0.4",
+    "mypy>=1.10",
+    "django-stubs[compatible-mypy]>=5.0",
+    "import-linter>=2.1",
+    "django-migration-linter>=5.1",
+    "factory-boy>=3.3",
+    "freezegun>=1.4",
+    "pre-commit>=3.7",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = ["**/generated/**"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "PT", "RUF"]
+ignore = [
+    "E501",
+    "RUF012",  # migrations use mutable defaults (Django convention)
+    "B904",    # raise-without-from: intentional in ORM DoesNotExist handlers (hides internal detail)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["apps", "libs", "config"]
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["mypy_django_plugin.main"]
+strict = false
+warn_unused_ignores = true
+warn_redundant_casts = true
+ignore_missing_imports = true
+
+[tool.django-stubs]
+django_settings_module = "config.settings.base"
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+pythonpath = ["django"]
+testpaths = ["django"]
+addopts = "--reuse-db -q --import-mode=importlib"
+
+[tool.coverage.run]
+source = ["django"]
+omit = ["*/migrations/*", "*/tests/*", "manage.py"]
+
+[tool.importlinter]
+root_packages = ["apps", "libs"]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "libs cannot import from apps"
+type = "forbidden"
+source_modules = [
+    "libs.errors",
+    "libs.pagination",
+    "libs.jwt_auth",
+    "libs.idempotency",
+    "libs.logging",
+    "libs.telemetry",
+    "libs.grpc_client",
+]
+forbidden_modules = [
+    "apps.identity",
+    "apps.economy",
+    "apps.payments",
+    "apps.content",
+    "apps.commerce",
+    "apps.membership",
+    "apps.events",
+    "apps.audit",
+    "apps.platform_config",
+]
+
+[[tool.importlinter.contracts]]
+name = "no cross-app model imports"
+type = "forbidden"
+source_modules = [
+    "apps.identity",
+    "apps.economy",
+    "apps.payments",
+    "apps.content",
+    "apps.commerce",
+    "apps.membership",
+]
+forbidden_modules = [
+    "apps.identity.models",
+    "apps.economy.models",
+    "apps.payments.models",
+    "apps.content.video.models",
+    "apps.content.drama.models",
+    "apps.content.live.models",
+    "apps.commerce.models",
+    "apps.membership.models",
+]
+# This is a self-referential contract that import-linter handles via
+# ignore_imports for each app's own models.
+# See .importlinter for the full config.

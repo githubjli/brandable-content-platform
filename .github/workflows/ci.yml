@@ -1,0 +1,183 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+env:
+  PYTHON_VERSION: "3.12"
+  DATABASE_URL: "postgres://brandable:brandable@localhost:5432/brandable_test"
+  DJANGO_SECRET_KEY: "ci-test-secret-key-not-for-production"
+  DJANGO_SETTINGS_MODULE: "config.settings.test"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Lint
+  # ---------------------------------------------------------------------------
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Ruff format check
+        run: ruff format --check django/
+
+      - name: Ruff lint
+        run: ruff check django/
+
+      - name: Mypy
+        run: mypy django/ --config-file pyproject.toml
+
+      - name: Import linter
+        run: |
+          cd django
+          lint-imports
+
+  # ---------------------------------------------------------------------------
+  # Test
+  # ---------------------------------------------------------------------------
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: brandable_test
+          POSTGRES_USER: brandable
+          POSTGRES_PASSWORD: brandable
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Run tests
+        working-directory: django
+        run: |
+          python -m pytest \
+            --ds=config.settings.test \
+            --cov=. \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            -v
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          file: django/coverage.xml
+          fail_ci_if_error: false
+
+  # ---------------------------------------------------------------------------
+  # Migration check
+  # ---------------------------------------------------------------------------
+  migration-check:
+    name: Migration linter
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: brandable_test
+          POSTGRES_USER: brandable
+          POSTGRES_PASSWORD: brandable
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Run migration linter
+        working-directory: django
+        run: |
+          python manage.py migrate --settings=config.settings.test
+          python -m django_migration_linter --settings=config.settings.test
+
+  # ---------------------------------------------------------------------------
+  # Proto drift check
+  # ---------------------------------------------------------------------------
+  proto-drift:
+    name: Proto drift check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install grpcio-tools
+        run: pip install grpcio-tools
+
+      - name: Regenerate proto files
+        run: make proto-gen
+
+      - name: Check for drift
+        run: |
+          if ! git diff --exit-code services/*/generated/; then
+            echo "ERROR: Generated proto files are stale. Run 'make proto-gen' and commit."
+            exit 1
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Secrets scan
+  # ---------------------------------------------------------------------------
+  gitleaks:
+    name: Gitleaks secrets scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

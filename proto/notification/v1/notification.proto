@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package notification.v1;
+
+import "google/protobuf/empty.proto";
+
+// NotificationService — canary gRPC service.
+service NotificationService {
+  // Ping is a health / canary RPC.
+  rpc Ping(google.protobuf.Empty) returns (PongResponse);
+}
+
+message PongResponse {
+  string message = 1;
+}
