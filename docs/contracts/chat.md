@@ -1,12 +1,34 @@
 # ChatService gRPC Contract
 
-**Second gRPC service** (V2 at W12-13). Handles direct messages, group chats, message history.
+**Early gRPC service** (architecture-first; full UX continues in V2/V3). Handles direct messages, group chats, message history.
 
 **Service location**: `services/chat/`
 **Implementation**: Python (grpcio + asyncio) in V1; Go rewrite candidate as load grows
 **Proto package**: `chat.v1`
 
 > **Note**: Live stream chat is **separate** — see live-runtime.md. This service handles 1:1 DMs and persistent group chats.
+
+## 0. Phase split
+
+Chat is allowed to move earlier than the rest of V2 because it has a clean service boundary: long-lived connections and message persistence are owned by ChatService, while identity stays in Django.
+
+Early architecture-first scope:
+- `Ping`
+- auth + tracing interceptors
+- service-local PostgreSQL schema
+- `CreateDirectRoom`
+- `SendMessage`
+- `ListMessages`
+- `MarkRead`
+- minimal WebSocket gateway
+
+Deferred:
+- Group chat beyond the proto shape
+- attachments
+- reactions
+- message edit/delete UX
+- server-side moderation
+- end-to-end encryption
 
 ---
 
@@ -321,14 +343,15 @@ CREATE INDEX idx_message_room_created ON message(room_id, created_at DESC);
 
 ## 7. Cross-domain integration
 
-ChatService **does not** read Django's database (per ADR-0006). Where it needs user info:
+ChatService **does not** read Django's database (per ADR-0006). It stores user IDs as the durable identity reference. Display enrichment is handled outside the core message write path:
 
-- User display name / avatar: cached at first contact; refreshed via gRPC call to Identity service or via subscription to `identity.ProfileUpdated` Outbox events
-- Block lists: per-user JSON cache from Identity service
+- User display name / avatar: resolved by clients via public Identity APIs, or by a read-only cache maintained from `identity.ProfileUpdated` Outbox events.
+- Block lists: cached from Identity-originated Outbox events or enforced by Django before room creation when the flow enters through Django.
+- No direct Django DB reads, and no Django HTTP mutation calls from ChatService.
 
 ---
 
-## 8. V2 deliverables (W12-13)
+## 8. Early deliverables
 
 - [ ] Proto + service skeleton
 - [ ] PostgreSQL schema

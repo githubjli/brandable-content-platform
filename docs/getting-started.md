@@ -53,24 +53,25 @@ ansible-playbook ops/ansible/deploy.yml --extra-vars "env=staging branch=main"
 
 ---
 
-## Weeks 2-16 at a glance (Django + canary gRPC)
+## Weeks 2-16 at a glance (architecture-first)
 
 | Week | Deliverable |
 |---|---|
 | 2 | Django baseline (settings layering, errors lib, pagination, logging, telemetry, health) |
-| 3 | Proto pipeline + OpenTelemetry across-process + JWT public key distribution |
+| 3 | Proto pipeline + OpenTelemetry across-process + JWT public key distribution + Notification `Ping` canary |
 | 4-5 | Identity V1 (with legacy account import + password hash compatibility) |
 | 6-7 | Economy V1 (with legacy wallet balance import + ledger) |
 | 8 | Events V1 (Outbox + Dispatcher + DLQ) + Audit V1 |
-| 9 | NotificationService launches (canary), wired to welcome email on registration |
-| 10 | PlatformConfig + Branding API |
-| 11 | Payments V1 (Stripe + Blockchain LBC + LTT backends), top-up event flows through NotificationService |
-| 12-13 | ChatService launches, DM scenario |
-| 14 | Membership V1 (one-shot + Stripe subscription) |
-| 15-16 | LiveRuntimeService launches, end-to-end gift flow (sync debit + async broadcast) |
+| 9 | Payments V1 (Stripe + Blockchain LBC + LTT backends) |
+| 10 | Commerce V1-AVS: minimal ProductOrder purchase chain (Commerce → Payments → Economy → Events → Audit) |
+| 11 | PlatformConfig + Branding API + Notification email canary |
+| 12-13 | ChatService early launch: direct room, send/list messages, WebSocket gateway |
+| 14 | LiveRuntimeService skeleton: auth/tracing, Ant Media smoke, CreateStream/GetWatchConfig, presence scaffold |
+| 15 | Membership Django boundary scaffold + active-membership import support (no Membership gRPC service) |
+| 16 | Final migration rehearsal + mobile cutover readiness gate |
 
-V2 (post-cutover): content (drama, video catalog), commerce (shop, cart, orders), full membership.
-V3: Live Runtime advanced features, real transcoding, push notifications, additional blockchain networks.
+V2 (post-cutover): content (drama, video catalog), full commerce (shop, cart, seller, shipping, refunds), user-facing membership orders/subscriptions, full notification channels.
+V3: Live Runtime full feature set, live gift broadcast, real transcoding, push-notification maturity, additional blockchain networks.
 
 See `architecture/modules.md` for the full module list and dependency graph.
 

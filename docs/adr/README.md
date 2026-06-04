@@ -11,11 +11,12 @@ Each ADR captures one significant decision: context, alternatives, decision, con
 | 0003 | Transactional Outbox with independent Dispatcher | Accepted |
 | 0004 | Wallet ledger invariants | Accepted |
 | 0005 | JWT (RS256) with explicit UserSession tracking | Accepted |
-| 0006 | gRPC service boundary rules | Accepted |
+| 0006 | gRPC service boundary rules | Accepted; build order superseded by 0011 |
 | 0007 | Python-first; per-service Go rewrite later if needed | Accepted |
 | 0008 | Bare-metal + systemd deployment (no containers in production) | Accepted |
 | 0009 | Migration strategy: parallel read-only + scheduled cutover | Accepted |
 | 0010 | Observability backend: Grafana stack (self-hosted) | Accepted |
+| 0011 | Architecture-first boundary adjustment | Accepted |
 
 ## Lifecycle
 

@@ -84,13 +84,13 @@ Total: ~75 minutes to be productive.
 | | Status |
 |---|---|
 | Contracts | 19/19 files complete |
-| ADRs | 10/10 |
+| ADRs | 11/11 |
 | Architecture | 4/4 |
 | Ops + runbooks | 5 + 5 |
 | Migration | 2/2 |
 | Top-level | 5/5 |
 
-Total: ~50 documents covering V1-V3 surface.
+Total: ~51 documents covering V1-V3 surface.
 
 ## Conventions for this directory
 

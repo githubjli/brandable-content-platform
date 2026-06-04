@@ -1,6 +1,6 @@
 # LiveRuntimeService gRPC Contract
 
-**Third gRPC service** (V3 at W15-16). Handles Ant Media integration, viewer WebSocket connections, gift broadcasts, viewer presence.
+**Early skeleton + V3 full gRPC service**. Handles Ant Media integration, viewer WebSocket connections, gift broadcasts, viewer presence.
 
 **Service location**: `services/live_runtime/`
 **Implementation**: Python (grpcio + asyncio) in V1; Go rewrite likely under load
@@ -22,6 +22,28 @@
 | Chat broadcast to viewers | **Live Runtime** | Same |
 | Viewer count aggregation | **Live Runtime** | Real-time |
 | RTMP/WebRTC publish config issuance | **Live Runtime** | Ant Media coupling |
+
+## 0. Phase split
+
+LiveRuntime can move earlier as a skeleton, but only for runtime concerns. It must not become the owner of gifts, wallets, commerce, membership, or live stream metadata.
+
+Early architecture-first scope:
+- `Ping`
+- auth + tracing interceptors
+- service skeleton + metrics
+- Ant Media health/config smoke
+- `CreateStream`
+- `GetWatchConfig`
+- Redis-backed viewer presence scaffold
+- WebSocket gateway shell
+
+Deferred to full V3:
+- production live cutover
+- live gift broadcast
+- moderation broadcast
+- product bindings
+- viewer-event feedback loop into Django
+- full broadcaster start/end workflow
 
 ---
 
@@ -411,7 +433,7 @@ Persistent state (rooms, messages, gifts) is in **Django**, not Runtime.
 
 ---
 
-## 10. V3 deliverables (W15-16)
+## 10. Full V3 deliverables
 
 - [ ] Proto + service skeleton
 - [ ] gRPC server with auth + tracing

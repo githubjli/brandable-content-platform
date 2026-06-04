@@ -135,8 +135,8 @@ Cross-references `legacy/mobile-api-contract-full.md` (snapshot of legacy backen
 | Shop categories | `ShopCategoryListAPIView` | `apps/commerce/views.py::ShopCategoryViewSet` | redesign | V2 | adapt | ✅ | ❌ |
 | Shop products (catalog) | `ShopProductListAPIView` | `apps/commerce/views.py::ProductListView` | redesign | V2 | adapt | ✅ | ❌ |
 | Cart (DB-backed) | `cart_urls.py` (skeleton) | `apps/commerce/models.py::Cart` + service | rewrite | V2 | rewrite | ✅ | ❌ |
-| Product orders | `product_order_urls.py` | `apps/commerce/services.py::create_product_order` | redesign | V2 | adapt | ✅ | ❌ |
-| Order state machine (5 states) | `ProductOrder.STATUS_*` | `apps/commerce/models.py::ProductOrder` | redesign | V2 | adapt | ✅ | ❌ |
+| Product orders | `product_order_urls.py` | `apps/commerce/services.py::create_product_order` | redesign | V1-AVS / V2 | adapt | ✅ | ❌ |
+| Order state machine (5 states) | `ProductOrder.STATUS_*` | `apps/commerce/models.py::ProductOrder` | redesign | V1-AVS / V2 | adapt | ✅ | ❌ |
 | QR resolve | `PaymentQRResolveAPIView` | `apps/commerce/views.py::PaymentQRResolveView` | keep | V2 | copy | ✅ | ❌ |
 | Order tracking | `ProductOrderTrackingAPIView` | `apps/commerce/views.py::TrackingView` | keep | V2 | copy | ✅ | ❌ |
 | Confirm received (buyer) | `ProductOrderConfirmReceivedAPIView` | `apps/commerce/services.py::confirm_received` | keep | V2 | copy | ✅ | ❌ |
@@ -163,6 +163,8 @@ Cross-references `legacy/mobile-api-contract-full.md` (snapshot of legacy backen
 | Stripe subscription (auto-renew) | (missing) | `apps/membership/adapters/stripe_subscription.py` | new | V2 | new | TBD | ❌ |
 | Past-due dunning | (missing) | (V3 defer) | defer | V3 | new | — | — |
 
+Boundary note: Membership remains in `apps/membership/` and no `services/membership/` gRPC service is introduced. V1 may scaffold models/import support for active memberships; user-facing plans, purchases, and subscriptions remain V2.
+
 ---
 
 ## Cross-cutting / Infrastructure
@@ -172,8 +174,8 @@ Cross-references `legacy/mobile-api-contract-full.md` (snapshot of legacy backen
 | Email sending | scattered Django EmailBackend | `services/notification/` gRPC | redesign | V1 | rewrite | indirect | indirect |
 | SMS sending | (missing) | `services/notification/` V2 | new | V2 | new | — | — |
 | Push notifications | (missing) | `services/notification/` V2 | new | V2 | new | — | — |
-| Live chat WebSocket | `consumers.py` (Django Channels) | `services/live_runtime/` gRPC + WS gateway | rewrite | V3 | rewrite | ✅ | ⚠️ |
-| 1:1 / group chat | (missing) | `services/chat/` gRPC | new | V2 | new | TBD | TBD |
+| Live chat WebSocket | `consumers.py` (Django Channels) | `services/live_runtime/` gRPC + WS gateway | rewrite | V1 skeleton / V3 full | rewrite | ✅ | ⚠️ |
+| 1:1 / group chat | (missing) | `services/chat/` gRPC | new | V1 early / V2 full | new | TBD | TBD |
 | Audit logging | inconsistent / scattered | `apps/audit/` | new | V1 | new | indirect | indirect |
 | Outbox event bus | (missing) | `apps/events/` | new | V1 | new | indirect | indirect |
 | Branding | `settings.py` constants | `apps/platform_config/` singleton | redesign | V1 | rewrite | ✅ | ✅ |

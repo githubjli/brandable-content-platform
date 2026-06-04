@@ -4,7 +4,7 @@ Covers: PaymentOrder state machine, Stripe adapter (V1 new), Blockchain adapter 
 
 **App**: `apps/payments/`
 **Legacy reference**: `MOBILE_API_CONTRACT_FULL.md` §28 (Product Orders), §34-35 (Membership)
-**Related ADR**: ADR-0011 (gRPC client policy)
+**Related ADRs**: ADR-0004 (wallet invariants), ADR-0011 (architecture-first boundary)
 
 ---
 
@@ -19,6 +19,7 @@ Covers: PaymentOrder state machine, Stripe adapter (V1 new), Blockchain adapter 
 It does **NOT** own:
 - Business order semantics (those belong to membership/, commerce/, economy/)
 - Wallet credits (delegate to `EconomyService`)
+- gRPC service boundaries (Payments stays in Django; there is no `services/payments/`)
 
 ---
 

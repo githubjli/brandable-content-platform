@@ -1,6 +1,6 @@
 # NotificationService gRPC Contract
 
-The **first gRPC service** (V1 canary at W9). Handles email, SMS, push notifications via external providers.
+The **first gRPC service** and canary. Handles email, SMS, push notifications via external providers.
 
 **Service location**: `services/notification/`
 **Implementation**: Python (grpcio + asyncio) in V1; potentially Go rewrite later
@@ -16,7 +16,7 @@ Per ADR-0006:
 3. **Simplest RPC shape**: single-direction request/response
 4. **Validates the whole stack**: proto pipeline + auth + tracing + deployment + observability
 
-Once Notification is live, Chat and Live Runtime are "add business logic" not "build infrastructure."
+Per ADR-0011, the earliest canary may be limited to `Ping`, auth, tracing, proto generation, deployment, and metrics. Full provider delivery can follow, but Notification still proves the first gRPC deployment path before Chat and LiveRuntime carry real work.
 
 ---
 
