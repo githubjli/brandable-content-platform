@@ -28,7 +28,11 @@ class JWKSView(View):
             if not isinstance(pub_key, RSAPublicKey):
                 raise ValueError("Only RSA keys supported")
 
-            pub_numbers = pub_key.public_key().public_numbers() if hasattr(pub_key, "public_key") else pub_key.public_numbers()
+            pub_numbers = (
+                pub_key.public_key().public_numbers()
+                if hasattr(pub_key, "public_key")
+                else pub_key.public_numbers()
+            )
 
             def _int_to_base64url(n: int) -> str:
                 length = (n.bit_length() + 7) // 8

@@ -137,7 +137,7 @@ jobs:
         working-directory: django
         run: |
           python manage.py migrate --settings=config.settings.test
-          python -m django_migration_linter --settings=config.settings.test
+          python manage.py lintmigrations --settings=config.settings.test
 
   # ---------------------------------------------------------------------------
   # Proto drift check
@@ -154,7 +154,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install grpcio-tools
-        run: pip install grpcio-tools
+        run: pip install "grpcio-tools==1.81.0"
 
       - name: Regenerate proto files
         run: make proto-gen

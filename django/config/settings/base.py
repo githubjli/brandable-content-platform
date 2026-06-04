@@ -22,7 +22,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent  # django/
 # ---------------------------------------------------------------------------
 SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]
 
-ALLOWED_HOSTS: list[str] = os.environ.get("ALLOWED_HOSTS", "").split(",") if os.environ.get("ALLOWED_HOSTS") else []
+ALLOWED_HOSTS: list[str] = (
+    os.environ.get("ALLOWED_HOSTS", "").split(",") if os.environ.get("ALLOWED_HOSTS") else []
+)
 
 DEBUG = False
 
@@ -97,7 +99,9 @@ ASGI_APPLICATION = "config.asgi.application"
 # ---------------------------------------------------------------------------
 # Database
 # ---------------------------------------------------------------------------
-_database_url = os.environ.get("DATABASE_URL", "postgres://brandable:brandable@localhost:5432/brandable")
+_database_url = os.environ.get(
+    "DATABASE_URL", "postgres://brandable:brandable@localhost:5432/brandable"
+)
 DATABASES = {
     "default": dj_database_url.parse(
         _database_url,
@@ -179,7 +183,11 @@ REST_FRAMEWORK = {
 # CORS
 # ---------------------------------------------------------------------------
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS: list[str] = os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",") if os.environ.get("CORS_ALLOWED_ORIGINS") else []
+CORS_ALLOWED_ORIGINS: list[str] = (
+    os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",")
+    if os.environ.get("CORS_ALLOWED_ORIGINS")
+    else []
+)
 # In production this is populated from PlatformConfig at startup.
 
 # ---------------------------------------------------------------------------
@@ -205,13 +213,17 @@ OTEL_ENABLED = os.environ.get("OTEL_ENABLED", "true").lower() == "true"
 # ---------------------------------------------------------------------------
 JWT_ALGORITHM = "RS256"
 JWT_ISSUER = "brandable-content-platform"
-JWT_ACCESS_TTL_SECONDS = 15 * 60       # 15 minutes
+JWT_ACCESS_TTL_SECONDS = 15 * 60  # 15 minutes
 JWT_REFRESH_TTL_SECONDS = 7 * 24 * 3600  # 7 days
 
 # Path to RSA private key PEM (used by Identity to issue tokens)
-JWT_PRIVATE_KEY_PATH = os.environ.get("JWT_PRIVATE_KEY_PATH", str(BASE_DIR / "config" / "keys" / "jwt_private.pem"))
+JWT_PRIVATE_KEY_PATH = os.environ.get(
+    "JWT_PRIVATE_KEY_PATH", str(BASE_DIR / "config" / "keys" / "jwt_private.pem")
+)
 # Path to RSA public key PEM (used by all services to verify tokens)
-JWT_PUBLIC_KEY_PATH = os.environ.get("JWT_PUBLIC_KEY_PATH", str(BASE_DIR / "config" / "keys" / "jwt_public.pem"))
+JWT_PUBLIC_KEY_PATH = os.environ.get(
+    "JWT_PUBLIC_KEY_PATH", str(BASE_DIR / "config" / "keys" / "jwt_public.pem")
+)
 # Key ID — surfaced in JWKS
 JWT_KID = os.environ.get("JWT_KID", "dev-key-1")
 

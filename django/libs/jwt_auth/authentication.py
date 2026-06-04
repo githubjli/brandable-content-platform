@@ -18,6 +18,7 @@ def _load_public_key() -> Any:
         from cryptography.hazmat.primitives.serialization import (
             load_pem_public_key,
         )
+
         with open(settings.JWT_PUBLIC_KEY_PATH, "rb") as f:
             return load_pem_public_key(f.read())
     except FileNotFoundError:
@@ -50,7 +51,9 @@ class JWTAuthentication(authentication.BaseAuthentication):
     www_authenticate_realm = "api"
 
     def authenticate(self, request: Any) -> tuple | None:
-        auth_header = authentication.get_authorization_header(request).decode("utf-8", errors="replace")
+        auth_header = authentication.get_authorization_header(request).decode(
+            "utf-8", errors="replace"
+        )
         if not auth_header:
             return None
 

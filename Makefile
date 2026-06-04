@@ -1,7 +1,8 @@
 .DEFAULT_GOAL := help
 DJANGO_DIR := django
 VENV       := .venv
-PYTHON     := $(VENV)/bin/python
+# Use .venv when it exists (local dev); fall back to system python (CI installs deps globally).
+PYTHON     := $(if $(wildcard $(VENV)/bin/python),$(VENV)/bin/python,python)
 MANAGE     := cd $(DJANGO_DIR) && ../$(PYTHON) manage.py
 PYTEST     := cd $(DJANGO_DIR) && ../$(PYTHON) -m pytest
 RUFF       := $(VENV)/bin/ruff

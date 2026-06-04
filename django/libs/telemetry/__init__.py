@@ -51,6 +51,7 @@ def setup_telemetry() -> None:
         # psycopg3 instrumentation
         try:
             from opentelemetry.instrumentation.psycopg import PsycopgInstrumentor
+
             PsycopgInstrumentor().instrument()
         except ImportError:
             logger.debug("psycopg OTel instrumentation not available")

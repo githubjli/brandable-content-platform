@@ -9,6 +9,7 @@ class TraceIdFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         try:
             from libs.telemetry import get_trace_id
+
             record.trace_id = get_trace_id()
         except Exception:
             record.trace_id = ""

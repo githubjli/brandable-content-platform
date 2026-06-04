@@ -13,4 +13,5 @@ from rest_framework.response import Response
 def health(request: HttpRequest) -> Response:
     """GET /api/v1/health — returns {"status": "ok", "trace_id": "..."}"""
     from libs.telemetry import get_trace_id  # noqa: PLC0415
+
     return Response({"status": "ok", "trace_id": get_trace_id()})

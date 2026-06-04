@@ -12,13 +12,15 @@ class CursorPagination(_DRFCursorPagination):
     page_size_query_param = "limit"
 
     def get_paginated_response(self, data: list) -> Response:
-        return Response({
-            "results": data,
-            "cursor": {
-                "next": self.get_next_link(),
-                "prev": self.get_previous_link(),
-            },
-        })
+        return Response(
+            {
+                "results": data,
+                "cursor": {
+                    "next": self.get_next_link(),
+                    "prev": self.get_previous_link(),
+                },
+            }
+        )
 
     def get_paginated_response_schema(self, schema: dict) -> dict:
         return {
