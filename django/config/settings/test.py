@@ -36,7 +36,7 @@ PASSWORD_HASHERS = [
 ]
 
 # django-migration-linter: register as an app so `manage.py lintmigrations` is available
-INSTALLED_APPS = INSTALLED_APPS + ["django_migration_linter"]  # noqa: F405
+INSTALLED_APPS = [*INSTALLED_APPS, "django_migration_linter"]  # noqa: F405
 
 # Suppress logging noise in tests
 LOGGING["root"]["level"] = "CRITICAL"  # noqa: F405

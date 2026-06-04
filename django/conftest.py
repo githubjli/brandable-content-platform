@@ -1,6 +1,5 @@
 """Pytest configuration for the Django test suite."""
 
-import django
 import pytest
 from django.test import RequestFactory
 

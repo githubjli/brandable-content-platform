@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any
 
@@ -40,7 +40,7 @@ def _load_private_key() -> Any:
 
 
 def _now_utc() -> datetime:
-    return datetime.now(tz=timezone.utc)
+    return datetime.now(tz=UTC)
 
 
 def sign_access_token(user_id: str, jti: str, scope: list[str]) -> str:
@@ -89,7 +89,7 @@ def sign_refresh_token(user_id: str, jti: str) -> str:
     return jwt.encode(payload, private_key, algorithm="RS256")
 
 
-def issue_token_pair(user: "User") -> dict:
+def issue_token_pair(user: User) -> dict:
     """Issue an access + refresh token pair for the given user.
 
     Returns::

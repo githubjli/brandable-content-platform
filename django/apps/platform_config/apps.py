@@ -7,6 +7,6 @@ class PlatformConfigConfig(AppConfig):
     label = "platform_config"
 
     def ready(self) -> None:
-        from libs.telemetry import setup_telemetry  # noqa: PLC0415
+        from libs.telemetry import setup_telemetry
 
         setup_telemetry()
