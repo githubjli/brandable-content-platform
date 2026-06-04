@@ -1,0 +1,91 @@
+# CODEOWNERS for brandable-content-platform
+#
+# Owners are auto-requested for review.
+# Money- and security-sensitive areas require TWO reviewers (configure in
+# branch protection rules or `.github/branch-protection.yml`).
+#
+# Replace placeholder team / user names with real GitHub handles before merging.
+
+# ─── Platform / cross-cutting ──────────────────────────────────────────────
+/proto/                              @platform-team
+/services/                           @platform-team
+/django/libs/                        @platform-team
+/ops/                                @platform-team
+/docs/adr/                           @tech-lead
+/docs/contracts/conventions.md       @tech-lead
+/docs/contracts/deprecated.md        @tech-lead
+/docs/contracts/diff-from-legacy.md  @tech-lead @platform-team
+/docs/architecture/                  @tech-lead @platform-team
+/docs/migration/                     @tech-lead @platform-team
+/.github/                            @platform-team
+/Makefile                            @platform-team
+/docker-compose.yml                  @platform-team
+
+# ─── Identity / auth (security-sensitive — 2 reviewers required) ──────────
+/django/apps/identity/               @auth-owner @tech-lead
+/django/libs/jwt_auth/               @auth-owner @tech-lead
+/docs/contracts/identity.md          @auth-owner @tech-lead
+/docs/ops/auth-propagation.md        @auth-owner @tech-lead
+/docs/ops/runbooks/jwt-key-rotation.md  @auth-owner @tech-lead
+/docs/adr/0005-jwt-and-session.md    @auth-owner @tech-lead
+
+# ─── Economy / wallet (MONEY — 2 reviewers required, strictest) ───────────
+/django/apps/economy/                @wallet-owner @tech-lead
+/ops/migration/import_legacy_wallets.py  @wallet-owner @tech-lead
+/docs/contracts/economy.md           @wallet-owner @tech-lead
+/docs/contracts/gift.md              @wallet-owner @tech-lead
+/docs/adr/0004-wallet-ledger-invariants.md  @wallet-owner @tech-lead
+/docs/ops/runbooks/wallet-reconciliation.md  @wallet-owner @tech-lead
+
+# ─── Payments (gateway abstraction) ────────────────────────────────────────
+/django/apps/payments/               @payments-owner @tech-lead
+/django/apps/payments/adapters/blockchain/  @payments-owner @tech-lead
+/docs/contracts/payments.md          @payments-owner @tech-lead
+
+# ─── Events / Outbox (cross-cutting) ───────────────────────────────────────
+/django/apps/events/                 @platform-team
+/docs/contracts/events.md            @platform-team @tech-lead
+/docs/adr/0003-outbox-pattern.md     @platform-team @tech-lead
+/docs/ops/runbooks/dlq-growth.md     @platform-team
+/docs/ops/runbooks/dispatcher-stuck.md  @platform-team
+
+# ─── Audit (compliance — 2 reviewers required) ─────────────────────────────
+/django/apps/audit/                  @platform-team @tech-lead
+/docs/contracts/audit.md             @platform-team @tech-lead
+
+# ─── Content modules ──────────────────────────────────────────────────────
+/django/apps/content/drama/          @content-team
+/django/apps/content/video/          @content-team
+/django/apps/content/live/           @content-team @live-runtime-owner
+/docs/contracts/content-drama.md     @content-team
+/docs/contracts/content-video.md     @content-team
+/docs/contracts/content-live.md      @content-team @live-runtime-owner
+
+# ─── Commerce / Membership ────────────────────────────────────────────────
+/django/apps/commerce/               @commerce-team
+/django/apps/membership/             @commerce-team @payments-owner
+/docs/contracts/commerce.md          @commerce-team
+/docs/contracts/membership.md        @commerce-team @payments-owner
+
+# ─── Platform config (branding / feature flags) ───────────────────────────
+/django/apps/platform_config/        @platform-team
+/docs/contracts/platform-config.md   @platform-team
+/docs/ops/feature-flags.md           @platform-team
+
+# ─── gRPC services ─────────────────────────────────────────────────────────
+/services/notification/              @platform-team
+/services/chat/                      @platform-team
+/services/live_runtime/              @platform-team @live-runtime-owner
+/docs/contracts/notification.md      @platform-team
+/docs/contracts/chat.md              @platform-team
+/docs/contracts/live-runtime.md      @platform-team @live-runtime-owner
+
+# ─── Migration scripts (HIGHLY sensitive — 2 reviewers required) ──────────
+/ops/migration/                      @tech-lead @platform-team @wallet-owner
+
+# ─── Operational docs / runbooks ───────────────────────────────────────────
+/docs/ops/                           @platform-team
+/docs/ops/runbooks/                  @platform-team
+
+# ─── Legacy reference (NO EDITS — snapshot) ────────────────────────────────
+/docs/legacy/                        @tech-lead
