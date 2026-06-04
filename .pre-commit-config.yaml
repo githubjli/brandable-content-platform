@@ -1,0 +1,34 @@
+repos:
+  # Ruff — fast Python linter + formatter
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.4
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  # Mypy — type checking
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        entry: mypy django/ --config-file pyproject.toml
+        language: system
+        pass_filenames: false
+        types: [python]
+
+  # Django check
+  - repo: local
+    hooks:
+      - id: django-check
+        name: django check
+        entry: bash -c 'cd django && python manage.py check --settings=config.settings.local'
+        language: system
+        pass_filenames: false
+        types: [python]
+
+  # Gitleaks — secrets scanning
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.3
+    hooks:
+      - id: gitleaks

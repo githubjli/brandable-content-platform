@@ -1,0 +1,24 @@
+syntax = "proto3";
+package common.v1;
+
+option java_package = "com.brandable.common.v1";
+option java_outer_classname = "CommonProto";
+
+// Standard error returned in gRPC trailers
+message Error {
+  string code = 1;      // SCREAMING_SNAKE_CASE matching REST error codes
+  string message = 2;
+  string detail = 3;    // optional JSON string
+}
+
+// Pagination for list RPCs
+message PageRequest {
+  string cursor = 1;
+  int32 limit = 2;      // default 20, max 100
+}
+
+message PageResponse {
+  string next_cursor = 1;
+  string prev_cursor = 2;
+  bool has_more = 3;
+}

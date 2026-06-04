@@ -1,0 +1,24 @@
+[Unit]
+Description=Brandable Content Platform — Django/gunicorn
+After=network.target postgresql.service redis.service
+Requires=postgresql.service redis.service
+
+[Service]
+Type=simple
+User=brandable
+Group=brandable
+WorkingDirectory=/opt/brandable-content-platform/django
+ExecStart=/opt/brandable-venv/bin/gunicorn config.wsgi:application \
+  --bind 127.0.0.1:8000 \
+  --workers 4 \
+  --timeout 30 \
+  --access-logfile -
+Restart=on-failure
+RestartSec=5
+EnvironmentFile=/etc/brandable/env
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=brandable-django
+
+[Install]
+WantedBy=multi-user.target

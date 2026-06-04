@@ -1,0 +1,35 @@
+[importlinter]
+root_packages =
+    apps
+    libs
+include_external_packages = True
+
+[importlinter:contract:libs-cannot-import-apps]
+name = libs cannot import from apps
+type = forbidden
+source_modules =
+    libs.errors
+    libs.pagination
+    libs.jwt_auth
+    libs.idempotency
+    libs.logging
+    libs.telemetry
+    libs.grpc_client
+forbidden_modules =
+    apps.identity
+    apps.economy
+    apps.payments
+    apps.content
+    apps.commerce
+    apps.membership
+    apps.events
+    apps.audit
+    apps.platform_config
+
+[importlinter:contract:no-cross-app-model-imports]
+name = no cross-app model imports (use services only)
+type = layers
+layers =
+    apps.identity.services : apps.economy.services : apps.payments.services : apps.content.video.services : apps.content.drama.services : apps.content.live.services : apps.commerce.services : apps.membership.services
+    apps.identity.models : apps.economy.models : apps.payments.models : apps.content.video.models : apps.content.drama.models : apps.content.live.models : apps.commerce.models : apps.membership.models
+# NOTE: apps.audit and apps.events are infrastructure — any app may import their services.
