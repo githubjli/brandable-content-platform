@@ -4,7 +4,54 @@ Covers: shop catalog (buyer-facing), cart, product orders, seller applications, 
 
 **App**: `apps/commerce/`
 **Legacy reference**: `MOBILE_API_CONTRACT_FULL.md` §13, §26-33, §40
-**Priority**: 🟡 V2 (mobile-critical, large scope, post-V1)
+**Priority**: 🟢 V1-AVS for the minimal purchase chain; 🟡 V2 for full marketplace
+
+## 0. Boundary & phase split
+
+Commerce remains a Django app. There is no `services/commerce/` gRPC service.
+
+### Ownership
+
+| Concern | Owner |
+|---|---|
+| Product catalog, product snapshots, buyer/seller order state | `apps/commerce/` |
+| Generic payment order, provider intent, webhook state | `apps/payments/` |
+| MP/MC wallet debit and credit | `apps/economy/` |
+| Notifications, fulfillment fan-out, analytics | Outbox handlers |
+| Audit trail for sensitive transitions | `apps/audit/` |
+
+Commerce calls `PaymentsService` and `EconomyService`; it does not call Stripe/blockchain adapters directly and does not mutate wallet rows directly.
+
+### V1 Commerce Architecture Validation Slice (V1-AVS)
+
+V1-AVS is a staging/internal slice used to prove the transaction chain:
+
+```text
+ProductOrder
+→ payments.Order
+→ wallet or Stripe payment
+→ ProductOrder paid
+→ OutboxEvent
+→ AuditLog
+```
+
+In scope:
+- Admin-seeded `Product`
+- `POST /api/v1/commerce/orders`
+- `GET /api/v1/commerce/orders/{order_no}`
+- `POST /api/v1/commerce/orders/{order_no}/cancel` while unpaid
+- Wallet payment with MP/MC
+- Stripe USD payment
+- `commerce.OrderCreated`, `commerce.OrderPaid`, `commerce.OrderCancelled`
+
+Out of scope until V2:
+- Public marketplace browsing
+- Cart
+- Seller onboarding and store management
+- Seller shipment and buyer confirm-received
+- Refund request/admin flow
+- QR resolution
+- Blockchain product-order payment
 
 ---
 
@@ -161,7 +208,7 @@ No body.
 
 ## 3. Product Orders
 
-### POST /api/v1/commerce/orders 🟡 V2
+### POST /api/v1/commerce/orders 🟢 V1-AVS / 🟡 V2
 **Auth**: required
 **Idempotency**: yes (required header)
 
@@ -170,7 +217,7 @@ No body.
 {
   "product_id": "<uuid>",
   "quantity": 1,
-  "shipping_address_id": "<uuid>",
+  "shipping_address_id": "<uuid or null>",
   "payment_provider": "stripe",
   "payment_asset": "USD"
 }
@@ -180,7 +227,9 @@ No body.
 - `blockchain` requires `blockchain_network` ∈ {`lbc`, `ltt`, `eth`(future), ...} + `currency` (token like `LBC`, `THB-LTT`, `USDT-ETH`).
 - `wallet` uses `payment_asset` ∈ {`MP`, `MC`}.
 
-`payment_asset` is the currency to charge in (e.g., `USD`, `LBC`, `THB`, `MP`, `MC`).
+`payment_asset` is the currency to charge in (e.g., `USD`, `LBC`, `THB-LTT`, `MP`, `MC`).
+
+`shipping_address_id` is required only for physical products. V1-AVS may use admin-seeded digital/test products with `shipping_address_id=null`; full shipping-address management stays V2.
 
 #### Response 201
 ```json
@@ -198,7 +247,7 @@ No body.
     "platform_fee": {"amount": "1.50", "currency": "USD"},
     "seller_receivable": {"amount": "28.49", "currency": "USD"}
   },
-  "shipping_address_snapshot": { /* full address */ },
+  "shipping_address_snapshot": { /* full address, or null for non-physical products */ },
   "seller_store": {"id": "<uuid>", "slug": "...", "name": "..."},
   "status": "pending_payment",
   "payment": {
@@ -222,7 +271,7 @@ No body.
 #### Side effects
 - Creates `ProductOrder` + linked `payments.Order` (`business_kind=PRODUCT`)
 - Allocates stock (reserves quantity)
-- Snapshots product + shipping address
+- Snapshots product + shipping address when present
 - Emits `OutboxEvent`: `commerce.OrderCreated`
 
 #### Diff from legacy
@@ -242,12 +291,12 @@ No body.
 &status=pending_payment,paid,shipping,completed
 ```
 
-### GET /api/v1/commerce/orders/{order_no} 🟡 V2
+### GET /api/v1/commerce/orders/{order_no} 🟢 V1-AVS / 🟡 V2
 Single order detail.
 
 ---
 
-### POST /api/v1/commerce/orders/{order_no}/cancel 🟡 V2
+### POST /api/v1/commerce/orders/{order_no}/cancel 🟢 V1-AVS / 🟡 V2
 **Auth**: required (buyer only)
 **Idempotency**: yes
 
@@ -264,8 +313,9 @@ Updated order with `status: cancelled`.
 
 #### Side effects
 - Releases stock
-- Initiates refund if paid
 - Emits `OutboxEvent`: `commerce.OrderCancelled`
+
+V1-AVS only supports cancelling unpaid orders. Paid-order cancellation/refund processing is V2.
 
 ---
 
@@ -638,9 +688,10 @@ PAID|SHIPPING|COMPLETED ──(buyer request) → RefundRequest{REQUESTED} ─�
 
 | Feature | V1 | V2 | V3 |
 |---|---|---|---|
+| Minimal ProductOrder purchase chain (admin-seeded product, wallet/Stripe, created/paid/cancelled events) | 🟢 V1-AVS | | |
 | Shop catalog | | 🟡 | |
 | Cart (DB-backed) | | 🟡 | |
-| Product orders (Stripe / MP / MC) | | 🟡 | |
+| Product orders (Stripe / MP / MC) | 🟢 V1-AVS | 🟡 full UX | |
 | Product orders (Blockchain — LBC) | | 🟡 | |
 | Product orders (Blockchain — other networks) | | | 🔵 |
 | Seller application + approval | | 🟡 | |

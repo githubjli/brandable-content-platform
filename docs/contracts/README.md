@@ -39,6 +39,7 @@ contracts/
 | Symbol | Meaning |
 |---|---|
 | 🟢 V1 | Ships in V1 (mobile cutover scope) |
+| 🟢 V1-AVS | V1 Architecture Validation Slice: implemented early to prove architecture; not necessarily exposed as full mobile UX |
 | 🟡 V2 | Ships in V2 (post-cutover, mobile keeps using legacy until then) |
 | 🔵 V3 | Ships in V3 |
 | 🛠 Admin | Admin/internal only; not exposed to mobile |
@@ -51,7 +52,7 @@ Every endpoint spec follows the same format:
 
 ```
 ### <METHOD> /api/v1/<path>
-**Status**: 🟢 V1 | 🟡 V2 | ...
+**Status**: 🟢 V1 | 🟢 V1-AVS | 🟡 V2 | ...
 **Legacy ref**: MOBILE_API_CONTRACT_FULL.md §N (if applicable)
 
 **Auth**: required / optional / none / service-only

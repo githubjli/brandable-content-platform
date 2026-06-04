@@ -1,10 +1,27 @@
 # Membership Contract
 
-Covers: membership plans, one-shot membership orders, 6-step manual Blockchain verification (V1 ships LBC + LTT backends; ETH and others plug in later), recurring subscription (Stripe).
+Covers: membership plans, one-shot membership orders, 6-step manual Blockchain verification (V2 uses the LBC + LTT payment backends from `apps/payments/`; ETH and others plug in later), recurring subscription (Stripe).
 
 **App**: `apps/membership/`
 **Legacy reference**: `MOBILE_API_CONTRACT_FULL.md` §34-36
-**Priority**: 🟡 V2 (mobile uses; depends on payments V1)
+**Priority**: 🟢 V1 internal foundation; 🟡 V2 user-facing purchases/subscriptions
+
+## 0. Boundary
+
+Membership is a Django app, not a gRPC service. There is no `services/membership/`.
+
+### Ownership
+
+| Concern | Owner |
+|---|---|
+| Membership plans | `apps/membership/` |
+| User entitlement state (`UserMembership`) | `apps/membership/` |
+| Recurring subscription state | `apps/membership/` |
+| Generic payment order/provider state | `apps/payments/` |
+| MP/MC wallet payment | `apps/economy/` |
+| Notification side effects | Outbox handlers → NotificationService |
+
+Membership grants and revocations happen in Django transactions. A gRPC service may notify or broadcast that a membership changed, but it must not be the source of truth for entitlement state.
 
 ---
 
@@ -177,7 +194,7 @@ If user has BillingSubscription, `auto_renew=true` and `subscription_id` referen
 
 ## 4. Manual Blockchain Verification (6-step)
 
-Generic flow for users who pay via blockchain transfer outside the app. **V1 ships LBC and LTT backends**; same endpoints support ETH and other networks once their backends register.
+Generic flow for users who pay via blockchain transfer outside the app. V2 uses the LBC and LTT backends already provided by `apps/payments/`; same endpoints support ETH and other networks once their backends register.
 
 The endpoint paths are network-agnostic; the request body carries `blockchain_network` (the chain) and `currency` (the token, e.g., `THB-LTT`). 6 steps:
 
@@ -401,6 +418,9 @@ class MembershipService:
 
 | Feature | V1 | V2 | V3 |
 |---|---|---|---|
+| Django app skeleton + models | 🟢 | | |
+| Active membership import support | 🟢 | | |
+| Internal `MembershipService.has_active_membership` | 🟢 | | |
 | Plans listing | | 🟡 | |
 | One-shot orders (Blockchain + Wallet) | | 🟡 | |
 | One-shot orders (Stripe USD) | | 🟡 | |

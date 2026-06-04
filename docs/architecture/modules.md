@@ -35,13 +35,13 @@ Built once, used by every business domain.
 
 ## Group 3 — gRPC services (3 services)
 
-Each is a separate process under `services/`. Built in V1 sequentially per ADR-0006.
+Each is a separate process under `services/`. ADR-0011 updates the build order: Notification remains the first canary, Chat may move earlier, and Live Runtime may ship an early skeleton before its full V3 feature set.
 
 | # | Service | Build week | Implementation | Owns |
 |---|---|---|---|---|
-| 12 | `services/notification/` | W9 (canary) | Python (grpcio + asyncio) | Notification record, delivery state |
-| 13 | `services/chat/` | W12–13 | Python (grpcio + asyncio) | Room, RoomMember, Message |
-| 14 | `services/live_runtime/` | W15–16 | Python (grpcio + asyncio) | Active stream sessions, viewer presence (Redis), Ant Media integration |
+| 12 | `services/notification/` | Early canary | Python (grpcio + asyncio) | Notification record, delivery state |
+| 13 | `services/chat/` | Early gRPC service | Python (grpcio + asyncio) | Room, RoomMember, Message |
+| 14 | `services/live_runtime/` | Early skeleton; full V3 | Python (grpcio + asyncio) | Active stream sessions, viewer presence (Redis), Ant Media integration |
 
 Per ADR-0007, all start in Python; per-service Go rewrites are options when production load demands.
 
@@ -123,6 +123,8 @@ Documented in `contracts/deprecated.md`, but worth restating here:
 | `apps/log/` | Logging is infrastructure (`libs/logging/`), not a domain |
 | `apps/branding/` | Single brand → `apps/platform_config/` singleton |
 | `apps/chat/` | Chat is a gRPC service, not a Django app |
+| `services/membership/` | Membership is a Django app; entitlement state is transactional |
+| `services/commerce/` | Commerce order state is transactional and stays in Django |
 | `apps/tenancy/` | Single brand → no tenancy machinery (ADR-0001) |
 
 ---
