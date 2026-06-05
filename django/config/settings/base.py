@@ -109,7 +109,10 @@ DATABASES = {
         conn_health_checks=True,
     )
 }
-DATABASES["default"]["OPTIONS"] = {"options": "-c default_transaction_isolation=read committed"}
+# Pin the transaction isolation level explicitly. In a libpq options string spaces
+# separate options, so the space inside "read committed" must be backslash-escaped —
+# otherwise libpq parses just "read" and the connection fails.
+DATABASES["default"]["OPTIONS"] = {"options": r"-c default_transaction_isolation=read\ committed"}
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -128,6 +131,27 @@ CACHES = {
 # ---------------------------------------------------------------------------
 # Auth
 # ---------------------------------------------------------------------------
+# Password hash compatibility (migration W4-W5).
+#
+# Identity stores hashes in Django's encoded format (see apps/identity/models.User
+# .password_hash) and verifies with django.contrib.auth.hashers.check_password.
+# Legacy `django-auth-core` is itself Django, so imported hashes are Django-native.
+# The FIRST entry is the "preferred" algorithm: any login whose stored hash uses a
+# different (legacy) algorithm is transparently re-hashed to it on first successful
+# login (see apps/identity/services.login). Keep PBKDF2 first — it needs no extra
+# native deps. The remaining entries exist purely so legacy hashes still verify.
+#
+# NOTE: Argon2/BCrypt verification additionally requires `argon2-cffi` / `bcrypt`
+# at runtime. They are listed here for completeness but are only reachable if the
+# legacy data actually contains those formats — add the lib to pyproject deps if so.
+PASSWORD_HASHERS = [
+    "django.contrib.auth.hashers.PBKDF2PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher",
+    "django.contrib.auth.hashers.Argon2PasswordHasher",
+    "django.contrib.auth.hashers.BCryptSHA256PasswordHasher",
+    "django.contrib.auth.hashers.ScryptPasswordHasher",
+]
+
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
@@ -226,6 +250,33 @@ JWT_PUBLIC_KEY_PATH = os.environ.get(
 )
 # Key ID — surfaced in JWKS
 JWT_KID = os.environ.get("JWT_KID", "dev-key-1")
+
+# ---------------------------------------------------------------------------
+# Economy
+# ---------------------------------------------------------------------------
+# Daily login reward amount (MP). String so it parses to an exact Decimal.
+ECONOMY_DAILY_REWARD_MP = os.environ.get("ECONOMY_DAILY_REWARD_MP", "10.0000")
+# Credit-recharge pay-to address; empty => recharge-info returns 503 until set.
+# On-chain/Stripe verification itself is wired in with payments (Week 9).
+ECONOMY_RECHARGE_PAY_TO_ADDRESS = os.environ.get("ECONOMY_RECHARGE_PAY_TO_ADDRESS", "")
+ECONOMY_RECHARGE_CONFIRMATIONS = int(os.environ.get("ECONOMY_RECHARGE_CONFIRMATIONS", "0"))
+
+# ---------------------------------------------------------------------------
+# Payments (Week 9). Provider config lives in env/secrets for now; it migrates to
+# PlatformConfig in Week 11. Secrets must NEVER be committed (see docs/ops/secrets).
+# ---------------------------------------------------------------------------
+STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY", "")
+STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+# When no live Stripe secret key is configured, the adapter returns a synthetic
+# PaymentIntent instead of calling Stripe (lets dev/test run without network).
+STRIPE_FAKE_MODE = not STRIPE_SECRET_KEY.startswith("sk_")
+PAYMENT_ORDER_TTL_SECONDS = int(os.environ.get("PAYMENT_ORDER_TTL_SECONDS", str(30 * 60)))
+
+# Blockchain backends. Only the LTT chain is enabled in V1 (THB-LTT stablecoin).
+LTT_NODE_URL = os.environ.get("LTT_NODE_URL", "")
+LTT_RECEIVE_ADDRESS = os.environ.get("LTT_RECEIVE_ADDRESS", "")
+LTT_REQUIRED_CONFIRMATIONS = int(os.environ.get("LTT_REQUIRED_CONFIRMATIONS", "1"))
 
 # ---------------------------------------------------------------------------
 # gRPC services

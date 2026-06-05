@@ -91,7 +91,7 @@ def notification_channel(
         channel.close()
 
 
-def get_notification_stub():  # type: ignore[return]
+def get_notification_stub():
     """Return a (stub, channel) pair for the NotificationService.
 
     Usage::
@@ -116,7 +116,7 @@ def get_notification_stub():  # type: ignore[return]
             sys.path.insert(0, _client_generated)
 
         try:
-            from generated import notification_pb2_grpc  # type: ignore[import]
+            from generated import notification_pb2_grpc
         except ImportError:
             # Try local generated dir inside grpc_client
             import importlib.util
@@ -127,7 +127,7 @@ def get_notification_stub():  # type: ignore[return]
             )
             if spec and spec.loader:
                 mod = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(mod)  # type: ignore[union-attr]
+                spec.loader.exec_module(mod)
                 notification_pb2_grpc = mod
             else:
                 raise

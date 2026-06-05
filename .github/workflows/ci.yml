@@ -40,12 +40,14 @@ jobs:
         run: ruff check django/
 
       - name: Mypy
-        run: mypy django/ --config-file pyproject.toml
+        run: |
+          cd django
+          mypy apps libs config --config-file ../pyproject.toml
 
       - name: Import linter
         run: |
           cd django
-          lint-imports
+          lint-imports --config ../.importlinter
 
   # ---------------------------------------------------------------------------
   # Test

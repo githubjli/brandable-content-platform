@@ -15,4 +15,4 @@ ALLOWED_HOSTS = [_staging_host, f"www.{_staging_host}"]
 OTEL_ENABLED = True
 
 # Slightly more verbose logging on staging for debugging
-LOGGING["root"]["level"] = "DEBUG"  # noqa: F405
+LOGGING["root"]["level"] = "DEBUG"  # type: ignore[index]  # noqa: F405

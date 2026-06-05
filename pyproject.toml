@@ -32,6 +32,7 @@ dependencies = [
     "uvicorn[standard]>=0.27",
     "cryptography>=42.0",
     "dj-database-url>=2.1",
+    "stripe>=9.0",
 ]
 
 [project.optional-dependencies]
@@ -72,6 +73,10 @@ strict = false
 warn_unused_ignores = true
 warn_redundant_casts = true
 ignore_missing_imports = true
+# Run mypy from the django/ dir targeting `apps libs config` (see Makefile / CI).
+# explicit_package_bases avoids "source found twice" for the namespace layout;
+# cwd=django/ is required so the django-stubs plugin can import config.settings.base.
+explicit_package_bases = true
 
 [tool.django-stubs]
 django_settings_module = "config.settings.base"
