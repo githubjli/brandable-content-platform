@@ -15,6 +15,7 @@ source_modules =
     libs.logging
     libs.telemetry
     libs.grpc_client
+    libs.migration
 forbidden_modules =
     apps.identity
     apps.economy

@@ -50,15 +50,25 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-def _emit_outbox(event_type: str, payload: dict, user_id: str) -> None:
-    """Emit an OutboxEvent via events.services.  No-op if app not yet built."""
+def _emit_outbox(
+    event_type: str, payload: dict, idempotency_key: str, actor_id: str | None = None
+) -> None:
+    """Emit an OutboxEvent via events.services (EventBus).
+
+    Emit failures — including idempotency-key collisions (EventAlreadyEmitted) — are
+    swallowed so a duplicate/transient event never breaks the business write.
+    """
     try:
         from apps.events.services import emit
 
-        emit(event_type=event_type, payload=payload, aggregate_id=user_id)
+        emit(
+            event_type=event_type,
+            idempotency_key=idempotency_key,
+            payload=payload,
+            actor_id=actor_id,
+        )
     except Exception:
-        # events app not yet built — will be wired in Week 8
-        logger.debug("_emit_outbox: events app unavailable; skipping %s", event_type)
+        logger.debug("_emit_outbox: emit failed; skipping %s", event_type)
 
 
 def _create_wallets(user_id: str) -> None:
@@ -71,14 +81,31 @@ def _create_wallets(user_id: str) -> None:
         logger.debug("_create_wallets: economy app unavailable; skipping for %s", user_id)
 
 
-def _record_audit(action: str, actor_id: str, target_id: str, payload: dict | None = None) -> None:
-    """Record audit log entry.  Must run in the same transaction as the business write."""
-    try:
-        from apps.audit.services import record_audit
+def _record_audit(
+    action: str,
+    *,
+    actor_id: str | None,
+    target_id: str,
+    actor_type: str = "user",
+    target_type: str = "User",
+    after_state: dict | None = None,
+    severity: str = "info",
+) -> None:
+    """Write an AuditLog row in the caller's transaction (audit.md §4).
 
-        record_audit(action=action, actor_id=actor_id, target_id=target_id, payload=payload or {})
-    except Exception:
-        logger.debug("_record_audit: audit app unavailable; skipping %s", action)
+    Does NOT swallow: if the audit write fails the business write must roll back.
+    """
+    from apps.audit.services import record_audit
+
+    record_audit(
+        action=action,
+        actor_type=actor_type,
+        actor_id=actor_id,
+        target_type=target_type,
+        target_id=target_id,
+        after_state=after_state,
+        severity=severity,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -116,7 +143,7 @@ def _decode_refresh_token(refresh_jwt: str) -> dict:
 
         payload = jwt.decode(
             refresh_jwt,
-            public_key,
+            public_key,  # type: ignore[arg-type]
             algorithms=[settings.JWT_ALGORITHM],
             issuer=settings.JWT_ISSUER,
             options={"verify_aud": False},
@@ -138,6 +165,21 @@ def _decode_refresh_token(refresh_jwt: str) -> dict:
 
 def _hash_token(raw_token: str) -> str:
     return hashlib.sha256(raw_token.encode()).hexdigest()
+
+
+def _rehash_setter(user: User):
+    """Build a setter that upgrades a user's stored hash to the preferred algorithm.
+
+    Passed to check_password: Django invokes it only on a *successful* match whose
+    stored hash uses a non-preferred (legacy/migrated) algorithm. This gives the
+    "first successful login auto-rehashes" behaviour the migration plan promises.
+    """
+
+    def setter(raw_password: str) -> None:
+        user.password_hash = make_password(raw_password)
+        user.save(update_fields=["password_hash", "updated_at"])
+
+    return setter
 
 
 def _now_utc() -> datetime:
@@ -214,13 +256,14 @@ def register(
                 "actor_id": str(user.id),
                 "occurred_at": _now_utc().isoformat(),
             },
-            user_id=str(user.id),
+            idempotency_key=f"user_registered:{user.id}",
+            actor_id=str(user.id),
         )
         _record_audit(
             action="identity.register",
             actor_id=str(user.id),
             target_id=str(user.id),
-            payload={"email": email},
+            after_state={"email": email},
         )
 
     # Wallet creation outside user-creation tx to avoid coupling.
@@ -254,7 +297,8 @@ def login(
             message="Invalid email or password.",
         )
 
-    if not check_password(password, user.password_hash):
+    # Auto-rehash legacy/migrated hashes to the preferred algorithm on success.
+    if not check_password(password, user.password_hash, setter=_rehash_setter(user)):
         raise AuthError(
             code="AUTH_INVALID_CREDENTIALS",
             message="Invalid email or password.",
@@ -285,7 +329,8 @@ def login(
                 "session_id": str(session.id),
                 "occurred_at": _now_utc().isoformat(),
             },
-            user_id=str(user.id),
+            idempotency_key=f"user_logged_in:{session.id}",
+            actor_id=str(user.id),
         )
         # Daily login reward — async via economy Outbox
         _emit_outbox(
@@ -295,7 +340,8 @@ def login(
                 "actor_id": str(user.id),
                 "occurred_at": _now_utc().isoformat(),
             },
-            user_id=str(user.id),
+            idempotency_key=f"daily_login_claim:{user.id}:{_now_utc().date().isoformat()}",
+            actor_id=str(user.id),
         )
 
     return {
@@ -409,12 +455,14 @@ def change_password(
                 "actor_id": str(user.id),
                 "occurred_at": _now_utc().isoformat(),
             },
-            user_id=str(user.id),
+            idempotency_key=f"password_changed:{user.id}:{uuid.uuid4().hex}",
+            actor_id=str(user.id),
         )
         _record_audit(
             action="identity.change_password",
             actor_id=str(user.id),
             target_id=str(user.id),
+            severity="notable",
         )
 
 
@@ -446,7 +494,8 @@ def request_password_reset(*, email: str) -> None:
                 "reset_token": raw_token,  # NotificationService sends the link
                 "occurred_at": _now_utc().isoformat(),
             },
-            user_id=str(user.id),
+            idempotency_key=f"password_reset_requested:{user.id}:{uuid.uuid4().hex}",
+            actor_id=str(user.id),
         )
 
 
@@ -489,12 +538,14 @@ def confirm_password_reset(*, reset_token: str, new_password: str) -> None:
                 "actor_id": str(user.id),
                 "occurred_at": now.isoformat(),
             },
-            user_id=str(user.id),
+            idempotency_key=f"password_changed:{user.id}:{uuid.uuid4().hex}",
+            actor_id=str(user.id),
         )
         _record_audit(
             action="identity.confirm_password_reset",
             actor_id=str(user.id),
             target_id=str(user.id),
+            severity="notable",
         )
 
 
@@ -586,7 +637,8 @@ def update_profile(*, user_id: str, **kwargs: Any) -> dict:
                 "fields": updated_fields,
                 "occurred_at": _now_utc().isoformat(),
             },
-            user_id=str(user.id),
+            idempotency_key=f"profile_updated:{user.id}:{uuid.uuid4().hex}",
+            actor_id=str(user.id),
         )
 
     return get_profile(user_id=user_id)
@@ -652,7 +704,7 @@ def follow_user(*, follower_id: str, target_id: str) -> dict:
         raise NotFoundError(code="USER_NOT_FOUND", message="Follower not found.")
 
     with transaction.atomic():
-        _follow, created = Follow.objects.get_or_create(
+        _follow, created = Follow.objects.get_or_create(  # type: ignore[misc]
             follower_id=follower_id,
             target_id=target_id,
         )
@@ -669,7 +721,8 @@ def follow_user(*, follower_id: str, target_id: str) -> dict:
                     "actor_id": str(follower_id),
                     "occurred_at": _now_utc().isoformat(),
                 },
-                user_id=str(follower_id),
+                idempotency_key=f"user_followed:{_follow.id}",
+                actor_id=str(follower_id),
             )
 
     target.refresh_from_db(fields=["follower_count"])
@@ -688,7 +741,7 @@ def unfollow_user(*, follower_id: str, target_id: str) -> None:
         raise NotFoundError(code="USER_NOT_FOUND", message="User not found.")
 
     try:
-        follow = Follow.objects.get(follower_id=follower_id, target_id=target_id)
+        follow = Follow.objects.get(follower_id=follower_id, target_id=target_id)  # type: ignore[misc]
     except Follow.DoesNotExist:
         return  # Already not following — idempotent
 
@@ -714,7 +767,8 @@ def unfollow_user(*, follower_id: str, target_id: str) -> None:
                 "actor_id": str(follower_id),
                 "occurred_at": _now_utc().isoformat(),
             },
-            user_id=str(follower_id),
+            idempotency_key=f"user_unfollowed:{follower_id}:{target_id}:{uuid.uuid4().hex}",
+            actor_id=str(follower_id),
         )
 
 
@@ -732,7 +786,9 @@ def get_public_user(*, viewer_id: str | None, user_id: str) -> dict:
 
     viewer_context: dict | None = None
     if viewer_id:
-        is_following = Follow.objects.filter(follower_id=viewer_id, target_id=user_id).exists()
+        is_following = Follow.objects.filter(  # type: ignore[misc]
+            follower_id=viewer_id, target_id=user_id
+        ).exists()
         viewer_context = {
             "is_following": is_following,
             "is_self": viewer_id == user_id,
@@ -865,7 +921,8 @@ def update_kyc(*, user_id: str, **kwargs: Any) -> dict:
                     "actor_id": str(user.id),
                     "occurred_at": _now_utc().isoformat(),
                 },
-                user_id=str(user.id),
+                idempotency_key=f"kyc_resubmitted:{user.id}:{uuid.uuid4().hex}",
+                actor_id=str(user.id),
             )
 
     profile.refresh_from_db()
@@ -943,7 +1000,8 @@ def submit_kyc(*, user_id: str) -> dict:
                 "actor_id": str(user.id),
                 "occurred_at": now.isoformat(),
             },
-            user_id=str(user.id),
+            idempotency_key=f"kyc_submitted:{user.id}:{uuid.uuid4().hex}",
+            actor_id=str(user.id),
         )
 
     return _serialize_kyc_profile(profile)

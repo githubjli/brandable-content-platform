@@ -160,6 +160,63 @@ class TestLogin:
 
 
 # ---------------------------------------------------------------------------
+# password hash compatibility / auto-rehash on login (migration W4-W5)
+# ---------------------------------------------------------------------------
+
+# Preferred (modern) hasher first, "legacy" hasher second. A hash produced by the
+# legacy algorithm must still verify, and must be upgraded to the preferred one on
+# the first successful login.
+_COMPAT_HASHERS = [
+    "django.contrib.auth.hashers.PBKDF2PasswordHasher",
+    "django.contrib.auth.hashers.MD5PasswordHasher",
+]
+
+
+@pytest.mark.django_db
+class TestPasswordRehash:
+    def test_legacy_hash_verifies_and_is_upgraded(self, settings):
+        settings.PASSWORD_HASHERS = _COMPAT_HASHERS
+        # Simulate an imported legacy hash (non-preferred algorithm).
+        legacy_hash = make_password("Password1", hasher="md5")
+        assert legacy_hash.startswith("md5$")
+        user = User.objects.create(
+            email="legacy@example.com",
+            password_hash=legacy_hash,
+            display_name="Legacy User",
+        )
+
+        with (
+            patch(PATCH_ISSUE, return_value=FAKE_TOKENS),
+            patch(PATCH_EMIT),
+        ):
+            services.login(email="legacy@example.com", password="Password1")
+
+        user.refresh_from_db()
+        # Upgraded to the preferred algorithm; login still succeeded.
+        assert user.password_hash.startswith("pbkdf2_sha256$")
+        assert user.password_hash != legacy_hash
+
+    def test_preferred_hash_is_not_rewritten(self, settings):
+        settings.PASSWORD_HASHERS = _COMPAT_HASHERS
+        modern_hash = make_password("Password1")
+        assert modern_hash.startswith("pbkdf2_sha256$")
+        user = User.objects.create(
+            email="modern@example.com",
+            password_hash=modern_hash,
+            display_name="Modern User",
+        )
+
+        with (
+            patch(PATCH_ISSUE, return_value=FAKE_TOKENS),
+            patch(PATCH_EMIT),
+        ):
+            services.login(email="modern@example.com", password="Password1")
+
+        user.refresh_from_db()
+        assert user.password_hash == modern_hash  # untouched — no needless write
+
+
+# ---------------------------------------------------------------------------
 # refresh_token
 # ---------------------------------------------------------------------------
 

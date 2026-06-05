@@ -95,11 +95,11 @@ lint-ruff:  ## Ruff format check + lint
 	$(RUFF) format --check $(DJANGO_DIR)
 	$(RUFF) check $(DJANGO_DIR)
 
-lint-mypy:  ## Type-check with mypy
-	$(MYPY) $(DJANGO_DIR) --config-file pyproject.toml
+lint-mypy:  ## Type-check with mypy (run from django/ so the django-stubs plugin can load settings)
+	cd $(DJANGO_DIR) && ../$(MYPY) apps libs config --config-file ../pyproject.toml
 
-lint-imports:  ## Check import rules with import-linter
-	cd $(DJANGO_DIR) && ../$(VENV)/bin/lint-imports
+lint-imports:  ## Check import rules with import-linter (config at repo root; cwd=django/ for package resolution)
+	cd $(DJANGO_DIR) && ../$(VENV)/bin/lint-imports --config ../.importlinter
 
 format:  ## Auto-format with ruff
 	$(RUFF) format $(DJANGO_DIR)

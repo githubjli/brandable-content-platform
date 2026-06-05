@@ -33,7 +33,7 @@ def idempotent(view_func: Callable) -> Callable:
     """
 
     @wraps(view_func)
-    def wrapper(*args, **kwargs):  # type: ignore[no-untyped-def]
+    def wrapper(*args, **kwargs):
         # Detect APIView method (first arg is `self`, second is `request`)
         # vs plain function view (first arg is `request`).
         from rest_framework.views import APIView

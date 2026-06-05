@@ -7,3 +7,7 @@ __pycache__/
 dist/
 .env
 .env.local
+
+# Migration run artifacts (keep the dir via .gitkeep, ignore generated files)
+ops/migration/reports/*.json
+ops/migration/reports/.*.checkpoint

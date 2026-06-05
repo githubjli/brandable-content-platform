@@ -18,7 +18,7 @@ class MetricsView(View):
 
     def get(self, request: HttpRequest) -> HttpResponse:
         try:
-            from prometheus_client import (  # type: ignore[import]
+            from prometheus_client import (
                 CONTENT_TYPE_LATEST,
                 generate_latest,
             )

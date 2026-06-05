@@ -7,4 +7,5 @@ class IdentityConfig(AppConfig):
     label = "identity"
 
     def ready(self) -> None:
-        pass  # register signals here when needed
+        # Import handlers so their @on_event registrations run.
+        from . import handlers  # noqa: F401

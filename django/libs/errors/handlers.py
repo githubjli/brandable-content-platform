@@ -114,7 +114,7 @@ def _handle_validation(data: dict | list | str) -> dict:
         if detail:
             error["detail"] = detail
         if len(non_field_messages) > 1:
-            error.setdefault("detail", {})["non_field_errors"] = non_field_messages  # type: ignore[index]
+            error.setdefault("detail", {})["non_field_errors"] = non_field_messages
         return {"error": error}
 
     if isinstance(data, list):

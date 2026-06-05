@@ -39,7 +39,7 @@ PASSWORD_HASHERS = [
 INSTALLED_APPS = [*INSTALLED_APPS, "django_migration_linter"]  # noqa: F405
 
 # Suppress logging noise in tests
-LOGGING["root"]["level"] = "CRITICAL"  # noqa: F405
+LOGGING["root"]["level"] = "CRITICAL"  # type: ignore[index]  # noqa: F405
 
 # Celery runs tasks eagerly (synchronously) in tests
 CELERY_TASK_ALWAYS_EAGER = True

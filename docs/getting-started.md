@@ -53,6 +53,28 @@ ansible-playbook ops/ansible/deploy.yml --extra-vars "env=staging branch=main"
 
 ---
 
+## Day-to-day commands (always via `make`)
+
+`make` is the only supported entry point for linting and tests — it runs the
+tools with the correct working directory and flags. **Do not run `mypy` /
+`lint-imports` / `pytest` directly from the repo root** (mypy and import-linter
+must run from `django/` or they fail). Full rules + the database/test workflow
+live in [CONTRIBUTING.md](../CONTRIBUTING.md).
+
+```bash
+make dev          # postgres + redis + django (docker-compose core profile)
+make lint         # ruff (format+check) + mypy + import-linter
+make test         # full pytest suite (runs on PostgreSQL, not sqlite)
+make test-fast    # pytest without coverage — quicker inner loop
+make format       # auto-format with ruff
+```
+
+Tests run against PostgreSQL and reuse the test DB (`--reuse-db`). After you
+regenerate a migration under the same name, rebuild the schema once with
+`cd django && ../.venv/bin/pytest --create-db`. See CONTRIBUTING.md §3.
+
+---
+
 ## Weeks 2-16 at a glance (architecture-first)
 
 | Week | Deliverable |
@@ -108,6 +130,7 @@ A typical PR (post W1):
 
 | Need | Look at |
 |---|---|
+| Dev workflow (make, DB, tests) | `../CONTRIBUTING.md` |
 | API for a domain | `contracts/<domain>.md` |
 | Cross-cutting rules | `contracts/conventions.md` |
 | Why we did X | `adr/` |

@@ -2,6 +2,18 @@
 
 How we keep a Django monolith + three gRPC services + Celery workers honest.
 
+> **Status (as of 2026-06): target vs. current.** This document describes the
+> intended end state. A few parts are **not yet adopted** — don't be surprised
+> when the code differs. For the *actual* current workflow see
+> [CONTRIBUTING.md](../../CONTRIBUTING.md).
+>
+> | Section | Aspirational | Current reality |
+> |---|---|---|
+> | §2 factories | `factory_boy` + `tests/factories/`; `Model.objects.create` "forbidden by lint" | No factories yet; tests live in `apps/<app>/tests/test_*.py` and call `Model.objects.create` directly. No such lint rule exists. |
+> | §2 local DB | "sqlite is fine locally for pure logic" | Tests run on **PostgreSQL** (`config.settings.test`); some features (audit triggers) require it. sqlite is not used. |
+> | §7 coverage | "Coverage ≥ 80% on `services.py` → Fail PR" | Coverage is reported but **not gated** (`--cov-fail-under=0`). |
+> | §11 commands | `make test-app APP=…`, `make coverage` | Those targets don't exist yet — use `make test` / `make test-fast`. |
+
 ---
 
 ## 1. Test pyramid

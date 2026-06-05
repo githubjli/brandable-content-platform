@@ -12,15 +12,25 @@ import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any
+from typing import Any, Protocol
 
 import jwt
 from django.conf import settings
 
-if TYPE_CHECKING:
-    from apps.identity.models import User
-
 logger = logging.getLogger(__name__)
+
+
+class _TokenUser(Protocol):
+    """Structural type for the user passed to issue_token_pair.
+
+    Declared here rather than imported from apps.identity.models so this lib does
+    not depend on an app — the import-linter "libs cannot import from apps"
+    contract forbids that even under TYPE_CHECKING.
+    """
+
+    id: Any
+    is_admin: bool
+    is_creator: bool
 
 
 @lru_cache(maxsize=1)
@@ -89,7 +99,7 @@ def sign_refresh_token(user_id: str, jti: str) -> str:
     return jwt.encode(payload, private_key, algorithm="RS256")
 
 
-def issue_token_pair(user: User) -> dict:
+def issue_token_pair(user: _TokenUser) -> dict:
     """Issue an access + refresh token pair for the given user.
 
     Returns::
