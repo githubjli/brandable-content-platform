@@ -279,6 +279,13 @@ LTT_RECEIVE_ADDRESS = os.environ.get("LTT_RECEIVE_ADDRESS", "")
 LTT_REQUIRED_CONFIRMATIONS = int(os.environ.get("LTT_REQUIRED_CONFIRMATIONS", "1"))
 
 # ---------------------------------------------------------------------------
+# Commerce (Week 10)
+# ---------------------------------------------------------------------------
+# Platform fee taken from each product order's subtotal (seller gets the rest).
+COMMERCE_PLATFORM_FEE_RATE = os.environ.get("COMMERCE_PLATFORM_FEE_RATE", "0.05")
+COMMERCE_ORDER_TTL_SECONDS = int(os.environ.get("COMMERCE_ORDER_TTL_SECONDS", str(30 * 60)))
+
+# ---------------------------------------------------------------------------
 # gRPC services
 # ---------------------------------------------------------------------------
 GRPC_NOTIFICATION_ADDRESS = os.environ.get("GRPC_NOTIFICATION_ADDRESS", "localhost:50051")

@@ -241,6 +241,26 @@ def get_order(*, order_no: str, user_id: str) -> dict[str, Any]:
     return serialize_order(_get_owned(order_no, user_id))
 
 
+def settle_wallet_order(*, order_no: str, ledger_entry_id: str) -> dict[str, Any]:
+    """Mark a wallet-provider Order PAID after the caller has debited the wallet.
+
+    Used by business apps (e.g. commerce) that pay with internal MP/MC: they
+    perform the EconomyService.debit, then call this so payments stays the owner
+    of Order state and `payments.OrderPaid` fires uniformly with the Stripe path.
+    """
+    try:
+        order = Order.objects.get(order_no=order_no)
+    except Order.DoesNotExist:
+        raise NotFoundError(code="ORDER_NOT_FOUND", message="Order not found.")
+    if order.payment_provider != "wallet":
+        raise ValidationError(
+            code="ORDER_NOT_WALLET", message="Only wallet orders settle this way."
+        )
+    with transaction.atomic():
+        _mark_paid(order, intent_id=ledger_entry_id)
+    return serialize_order(order)
+
+
 def orders_queryset(
     *,
     user_id: str,

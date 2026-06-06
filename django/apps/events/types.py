@@ -39,5 +39,10 @@ PAYMENTS_WEBHOOK_RECEIVED = "payments.WebhookReceived"
 # Economy (recharge fulfilment, emitted once payment settles)
 ECONOMY_CREDIT_RECHARGE_FULFILLED = "economy.CreditRechargeFulfilled"
 
+# Commerce (V1-AVS)
+COMMERCE_ORDER_CREATED = "commerce.OrderCreated"
+COMMERCE_ORDER_PAID = "commerce.OrderPaid"
+COMMERCE_ORDER_CANCELLED = "commerce.OrderCancelled"
+
 # Audit (meta)
 AUDIT_AUDIT_FAILED = "audit.AuditFailed"
