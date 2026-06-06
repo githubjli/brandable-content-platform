@@ -15,7 +15,12 @@ from django.db import transaction
 from django.db.models import F, Q, Value
 from django.db.models.functions import Greatest
 
-from libs.errors.exceptions import NotFoundError, UnprocessableError, ValidationError
+from libs.errors.exceptions import (
+    ForbiddenError,
+    NotFoundError,
+    UnprocessableError,
+    ValidationError,
+)
 
 from .models import Video, VideoCategory, VideoComment, VideoLike, VideoShare, VideoView
 
@@ -381,3 +386,185 @@ def track_view(
             actor_id=str(user_id) if user_id else None,
         )
     return {"video_id": str(video.id), "view_count": video.view_count}
+
+
+# ---------------------------------------------------------------------------
+# Creator management — content-video.md §3
+# ---------------------------------------------------------------------------
+
+_VISIBILITIES = {Video.PUBLIC, Video.PRIVATE, Video.UNLISTED}
+_ACCESS_TYPES = {Video.FREE, Video.MEMBERS_ONLY}
+
+
+def _resolve_category(category_id: Any) -> VideoCategory | None:
+    if not category_id:
+        return None
+    try:
+        return VideoCategory.objects.get(id=category_id)
+    except VideoCategory.DoesNotExist:
+        raise ValidationError(code="CATEGORY_NOT_FOUND", message="Category not found.")
+
+
+def serialize_owned_video(video: Video) -> dict[str, Any]:
+    """Creator-facing video (own) — exposes visibility/access/is_active + dates."""
+    return {
+        "id": str(video.id),
+        "title": video.title,
+        "description": video.description or None,
+        "category": serialize_category(video.category) if video.category else None,
+        "visibility": video.visibility,
+        "access_type": video.access_type,
+        "file_url": video.file_url or None,
+        "thumbnail_url": video.thumbnail_url or None,
+        "duration_seconds": video.duration_seconds,
+        "preview_seconds": video.preview_seconds,
+        "counts": {
+            "view": video.view_count,
+            "like": video.like_count,
+            "comment": video.comment_count,
+            "share": video.share_count,
+        },
+        "is_active": video.is_active,
+        "created_at": _iso(video.created_at),
+        "updated_at": _iso(video.updated_at),
+    }
+
+
+def my_videos_queryset(*, user_id: str):
+    """All of a creator's own videos (every visibility + inactive)."""
+    return Video.objects.select_related("category").filter(owner_user_id=user_id)
+
+
+def create_video(
+    *,
+    user_id: str,
+    title: str,
+    description: str = "",
+    file_url: str = "",
+    thumbnail_url: str = "",
+    duration_seconds: int = 0,
+    preview_seconds: int = 0,
+    category_id: str | None = None,
+    visibility: str = Video.PUBLIC,
+    access_type: str = Video.FREE,
+) -> dict[str, Any]:
+    from apps.identity.services import is_creator
+
+    if not is_creator(user_id):
+        raise ForbiddenError(code="NOT_CREATOR", message="Only creators can publish videos.")
+    if visibility not in _VISIBILITIES:
+        raise ValidationError(code="VIDEO_INVALID_VISIBILITY", message="Invalid visibility.")
+    if access_type not in _ACCESS_TYPES:
+        raise ValidationError(code="VIDEO_INVALID_ACCESS_TYPE", message="Invalid access_type.")
+    with transaction.atomic():
+        category = _resolve_category(category_id)
+        video = Video.objects.create(
+            owner_user_id=user_id,
+            category=category,
+            title=title,
+            description=description,
+            file_url=file_url,
+            thumbnail_url=thumbnail_url,
+            duration_seconds=duration_seconds,
+            preview_seconds=preview_seconds,
+            visibility=visibility,
+            access_type=access_type,
+        )
+        _emit(
+            event_type="content.VideoCreated",
+            payload={
+                "video_id": str(video.id),
+                "owner_user_id": str(user_id),
+                "visibility": visibility,
+                "occurred_at": _iso(_now()),
+            },
+            idempotency_key=f"content_video_created:{video.id}",
+            actor_id=str(user_id),
+        )
+    return serialize_owned_video(video)
+
+
+def _owned_video(user_id: str, video_id: str, *, lock: bool = False) -> Video:
+    qs = Video.objects.filter(id=video_id, owner_user_id=user_id)
+    if lock:
+        qs = qs.select_for_update(of=("self",))
+    video = qs.select_related("category").first()
+    if video is None:
+        raise NotFoundError(code="VIDEO_NOT_FOUND", message="Video not found.")
+    return video
+
+
+def get_my_video(*, user_id: str, video_id: str) -> dict[str, Any]:
+    return serialize_owned_video(_owned_video(user_id, video_id))
+
+
+def update_my_video(*, user_id: str, video_id: str, **fields: Any) -> dict[str, Any]:
+    allowed = {
+        "title",
+        "description",
+        "file_url",
+        "thumbnail_url",
+        "duration_seconds",
+        "preview_seconds",
+        "visibility",
+        "access_type",
+    }
+    with transaction.atomic():
+        video = _owned_video(user_id, video_id, lock=True)
+        if "category_id" in fields:
+            video.category = _resolve_category(fields.pop("category_id"))
+        for key, value in fields.items():
+            if key not in allowed:
+                continue
+            if key == "visibility" and value not in _VISIBILITIES:
+                raise ValidationError(
+                    code="VIDEO_INVALID_VISIBILITY", message="Invalid visibility."
+                )
+            if key == "access_type" and value not in _ACCESS_TYPES:
+                raise ValidationError(
+                    code="VIDEO_INVALID_ACCESS_TYPE", message="Invalid access_type."
+                )
+            setattr(video, key, value)
+        video.save()
+        _emit(
+            event_type="content.VideoUpdated",
+            payload={"video_id": str(video.id), "occurred_at": _iso(_now())},
+            idempotency_key=f"content_video_updated:{video.id}:{_now().timestamp()}",
+            actor_id=str(user_id),
+        )
+    return serialize_owned_video(video)
+
+
+def delete_my_video(*, user_id: str, video_id: str) -> None:
+    """Soft delete: is_active=False (removes it from the public catalog)."""
+    with transaction.atomic():
+        video = _owned_video(user_id, video_id, lock=True)
+        if not video.is_active:
+            return
+        video.is_active = False
+        video.save(update_fields=["is_active", "updated_at"])
+        _emit(
+            event_type="content.VideoDeleted",
+            payload={"video_id": str(video.id), "occurred_at": _iso(_now())},
+            idempotency_key=f"content_video_deleted:{video.id}",
+            actor_id=str(user_id),
+        )
+
+
+def regenerate_thumbnail(
+    *, user_id: str, video_id: str, time_offset_seconds: float = 0.0
+) -> dict[str, Any]:
+    """Acknowledge a thumbnail-regeneration request. Real frame extraction needs
+    transcoding (V3); for now this records the request and returns the video."""
+    video = _owned_video(user_id, video_id)
+    _emit(
+        event_type="content.VideoUpdated",
+        payload={
+            "video_id": str(video.id),
+            "thumbnail_offset_seconds": time_offset_seconds,
+            "occurred_at": _iso(_now()),
+        },
+        idempotency_key=f"content_video_thumbnail:{video.id}:{_now().timestamp()}",
+        actor_id=str(user_id),
+    )
+    return serialize_owned_video(video)

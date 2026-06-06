@@ -36,4 +36,16 @@ urlpatterns = [
         views.VideoViewTrackView.as_view(),
         name="video-view",
     ),
+    # Creator management — §3
+    path("content/video/me", views.MyVideoListCreateView.as_view(), name="video-me-list"),
+    path(
+        "content/video/me/<uuid:video_id>",
+        views.MyVideoDetailView.as_view(),
+        name="video-me-detail",
+    ),
+    path(
+        "content/video/me/<uuid:video_id>/regenerate-thumbnail",
+        views.MyVideoRegenerateThumbnailView.as_view(),
+        name="video-me-regenerate-thumbnail",
+    ),
 ]

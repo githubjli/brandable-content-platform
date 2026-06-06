@@ -68,6 +68,9 @@ COMMERCE_REFUND_REJECTED = "commerce.RefundRejected"
 COMMERCE_REFUND_COMPLETED = "commerce.RefundCompleted"
 
 # Content — video (V2)
+CONTENT_VIDEO_CREATED = "content.VideoCreated"
+CONTENT_VIDEO_UPDATED = "content.VideoUpdated"
+CONTENT_VIDEO_DELETED = "content.VideoDeleted"
 CONTENT_VIDEO_LIKED = "content.VideoLiked"
 CONTENT_VIDEO_UNLIKED = "content.VideoUnliked"
 CONTENT_VIDEO_COMMENTED = "content.VideoCommented"

@@ -634,6 +634,11 @@ def follower_count(user_id: str) -> int:
     return int(row or 0)
 
 
+def is_creator(user_id: str) -> bool:
+    """Whether a user may publish content (creator flag). False if user missing."""
+    return User.objects.filter(id=user_id, is_creator=True).exists()
+
+
 def following_ids(follower_id: str | None, target_ids: list[str]) -> set[str]:
     """Subset of target_ids that follower_id follows. Batched for viewer_context
     (content owner-follow flags). Empty when unauthenticated."""

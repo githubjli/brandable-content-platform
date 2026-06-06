@@ -15,7 +15,13 @@ from rest_framework.views import APIView
 from libs.pagination.cursor import CursorPagination
 
 from . import services
-from .serializers import AddCommentSerializer, ShareSerializer
+from .serializers import (
+    AddCommentSerializer,
+    CreateVideoSerializer,
+    RegenerateThumbnailSerializer,
+    ShareSerializer,
+    UpdateVideoSerializer,
+)
 
 
 def _viewer_id(request: Request) -> str | None:
@@ -121,5 +127,67 @@ class VideoViewTrackView(APIView):
     def post(self, request: Request, video_id: str) -> Response:
         result = services.track_view(
             video_id=video_id, user_id=_viewer_id(request), ip_address=_client_ip(request)
+        )
+        return Response(result)
+
+
+# ---------------------------------------------------------------------------
+# Creator management — content-video.md §3
+# ---------------------------------------------------------------------------
+
+
+class MyVideoListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request: Request) -> Response:
+        qs = services.my_videos_queryset(user_id=str(request.user.id))
+        paginator = CursorPagination()
+        page = paginator.paginate_queryset(qs, request, view=self)
+        return paginator.get_paginated_response([services.serialize_owned_video(v) for v in page])
+
+    def post(self, request: Request) -> Response:
+        serializer = CreateVideoSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = dict(serializer.validated_data)
+        category_id = data.pop("category_id", None)
+        result = services.create_video(
+            user_id=str(request.user.id),
+            category_id=str(category_id) if category_id else None,
+            **data,
+        )
+        return Response(result, status=status.HTTP_201_CREATED)
+
+
+class MyVideoDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request: Request, video_id: str) -> Response:
+        return Response(services.get_my_video(user_id=str(request.user.id), video_id=video_id))
+
+    def patch(self, request: Request, video_id: str) -> Response:
+        serializer = UpdateVideoSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = dict(serializer.validated_data)
+        if "category_id" in data:
+            cid = data.pop("category_id")
+            data["category_id"] = str(cid) if cid else None
+        result = services.update_my_video(user_id=str(request.user.id), video_id=video_id, **data)
+        return Response(result)
+
+    def delete(self, request: Request, video_id: str) -> Response:
+        services.delete_my_video(user_id=str(request.user.id), video_id=video_id)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class MyVideoRegenerateThumbnailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request: Request, video_id: str) -> Response:
+        serializer = RegenerateThumbnailSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = services.regenerate_thumbnail(
+            user_id=str(request.user.id),
+            video_id=video_id,
+            time_offset_seconds=serializer.validated_data.get("time_offset_seconds", 0.0),
         )
         return Response(result)
