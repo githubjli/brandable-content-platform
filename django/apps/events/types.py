@@ -67,6 +67,16 @@ COMMERCE_REFUND_APPROVED = "commerce.RefundApproved"
 COMMERCE_REFUND_REJECTED = "commerce.RefundRejected"
 COMMERCE_REFUND_COMPLETED = "commerce.RefundCompleted"
 
+# Content — video (V2)
+CONTENT_VIDEO_CREATED = "content.VideoCreated"
+CONTENT_VIDEO_UPDATED = "content.VideoUpdated"
+CONTENT_VIDEO_DELETED = "content.VideoDeleted"
+CONTENT_VIDEO_LIKED = "content.VideoLiked"
+CONTENT_VIDEO_UNLIKED = "content.VideoUnliked"
+CONTENT_VIDEO_COMMENTED = "content.VideoCommented"
+CONTENT_VIDEO_SHARED = "content.VideoShared"
+CONTENT_VIDEO_VIEWED = "content.VideoViewed"
+
 # Platform
 PLATFORM_CONFIG_UPDATED = "platform.ConfigUpdated"
 PLATFORM_FEATURE_TOGGLED = "platform.FeatureToggled"
