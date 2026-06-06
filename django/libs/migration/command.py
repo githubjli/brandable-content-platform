@@ -53,8 +53,33 @@ class BaseMigrationCommand(BaseCommand):
     ) -> tuple[str, dict[str, Any]]:
         raise NotImplementedError
 
-    def load_batch(self, rows: list[dict[str, Any]], *, dry_run: bool) -> Counters:
+    def load_one(self, row: dict[str, Any]) -> str:
+        """Upsert one legacy row. Return "inserted" | "updated" | "skipped".
+
+        Implement this for the default :meth:`load_batch` loop, or override
+        load_batch directly for bespoke batching.
+        """
         raise NotImplementedError
+
+    def load_batch(self, rows: list[dict[str, Any]], *, dry_run: bool) -> Counters:
+        """Default loop: isolate each row in a savepoint so one bad row is
+        recorded and skipped rather than aborting the page."""
+        counters = Counters()
+        for row in rows:
+            counters.total += 1
+            key = row.get("email") or row.get(self.keyset_field)
+            try:
+                with transaction.atomic():
+                    status = self.load_one(row)
+                if status == "inserted":
+                    counters.inserted += 1
+                elif status == "updated":
+                    counters.updated += 1
+                else:
+                    counters.skipped += 1
+            except Exception as exc:
+                counters.record_error(str(key), exc)
+        return counters
 
     def audit_event(self, action: str, payload: dict[str, Any]) -> None:
         """Override in the app layer to write an AuditLog row. Default: no-op."""
