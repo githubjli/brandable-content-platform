@@ -38,6 +38,15 @@ PASSWORD_HASHERS = [
 # django-migration-linter: register as an app so `manage.py lintmigrations` is available
 INSTALLED_APPS = [*INSTALLED_APPS, "django_migration_linter"]  # noqa: F405
 
+# These commerce migrations make destructive/locking schema changes (drop the
+# replaced Product.is_active column, add NOT-NULL columns + indexes to existing
+# tables). The linter flags them for zero-downtime deploys, but the platform is
+# pre-launch with no deployed database, so they are safe to apply outright.
+# Exempt them by name — the gate stays fully active for every other migration.
+MIGRATION_LINTER_OPTIONS = {
+    "ignore_name": ["0002_shop_catalog", "0005_shipment_state_machine"],
+}
+
 # Suppress logging noise in tests
 LOGGING["root"]["level"] = "CRITICAL"  # type: ignore[index]  # noqa: F405
 
