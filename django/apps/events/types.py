@@ -44,6 +44,29 @@ COMMERCE_ORDER_CREATED = "commerce.OrderCreated"
 COMMERCE_ORDER_PAID = "commerce.OrderPaid"
 COMMERCE_ORDER_CANCELLED = "commerce.OrderCancelled"
 
+# Commerce (V2 — cart)
+COMMERCE_CART_ITEM_ADDED = "commerce.CartItemAdded"
+COMMERCE_CART_ITEM_REMOVED = "commerce.CartItemRemoved"
+
+# Commerce (V2 — seller onboarding)
+COMMERCE_SELLER_APPLICATION_SUBMITTED = "commerce.SellerApplicationSubmitted"
+COMMERCE_SELLER_APPLICATION_APPROVED = "commerce.SellerApplicationApproved"
+COMMERCE_SELLER_APPLICATION_REJECTED = "commerce.SellerApplicationRejected"
+COMMERCE_STORE_CREATED = "commerce.StoreCreated"
+
+# Commerce (V2 — seller products + fulfillment)
+COMMERCE_PRODUCT_CREATED = "commerce.ProductCreated"
+COMMERCE_PRODUCT_UPDATED = "commerce.ProductUpdated"
+COMMERCE_PRODUCT_ARCHIVED = "commerce.ProductArchived"
+COMMERCE_ORDER_SHIPPED = "commerce.OrderShipped"
+COMMERCE_ORDER_COMPLETED = "commerce.OrderCompleted"
+
+# Commerce (V2 — refunds)
+COMMERCE_REFUND_REQUESTED = "commerce.RefundRequested"
+COMMERCE_REFUND_APPROVED = "commerce.RefundApproved"
+COMMERCE_REFUND_REJECTED = "commerce.RefundRejected"
+COMMERCE_REFUND_COMPLETED = "commerce.RefundCompleted"
+
 # Platform
 PLATFORM_CONFIG_UPDATED = "platform.ConfigUpdated"
 PLATFORM_FEATURE_TOGGLED = "platform.FeatureToggled"

@@ -607,6 +607,33 @@ def get_profile(*, user_id: str) -> dict:
     }
 
 
+def public_profiles(user_ids: list[str]) -> dict[str, dict]:
+    """Batch-fetch minimal public profile cards keyed by str(user_id).
+
+    Cross-app callers (commerce catalog, content owner cards) use this to avoid
+    N+1 lookups. Returns only public-safe fields; missing users are omitted.
+    """
+    ids = {str(uid) for uid in user_ids if uid}
+    if not ids:
+        return {}
+    users = User.objects.filter(id__in=ids).only("id", "display_name", "avatar_url", "is_creator")
+    return {
+        str(u.id): {
+            "id": str(u.id),
+            "display_name": u.display_name,
+            "avatar_url": u.avatar_url,
+            "is_creator": u.is_creator,
+        }
+        for u in users
+    }
+
+
+def mark_seller(*, user_id: str) -> None:
+    """Flag a user as an approved seller. Idempotent; called by commerce on
+    seller-application approval."""
+    User.objects.filter(id=user_id).update(is_seller=True, updated_at=_now_utc())
+
+
 def update_profile(*, user_id: str, **kwargs: Any) -> dict:
     """Partial profile update."""
     try:
