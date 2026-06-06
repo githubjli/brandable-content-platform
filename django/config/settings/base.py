@@ -291,6 +291,11 @@ COMMERCE_ORDER_TTL_SECONDS = int(os.environ.get("COMMERCE_ORDER_TTL_SECONDS", st
 GRPC_NOTIFICATION_ADDRESS = os.environ.get("GRPC_NOTIFICATION_ADDRESS", "localhost:50051")
 GRPC_TIMEOUT_SECONDS = float(os.environ.get("GRPC_TIMEOUT_SECONDS", "3"))
 
+# When false (default in dev/test), notification event handlers no-op instead of
+# making a gRPC call to a Notification service that isn't running. Enable in
+# environments where the Notification service is up (Week 11 email canary).
+NOTIFICATION_ENABLED = os.environ.get("NOTIFICATION_ENABLED", "false").lower() == "true"
+
 # ---------------------------------------------------------------------------
 # Logging — structured JSON, trace_id injected via filter
 # ---------------------------------------------------------------------------

@@ -44,5 +44,9 @@ COMMERCE_ORDER_CREATED = "commerce.OrderCreated"
 COMMERCE_ORDER_PAID = "commerce.OrderPaid"
 COMMERCE_ORDER_CANCELLED = "commerce.OrderCancelled"
 
+# Platform
+PLATFORM_CONFIG_UPDATED = "platform.ConfigUpdated"
+PLATFORM_FEATURE_TOGGLED = "platform.FeatureToggled"
+
 # Audit (meta)
 AUDIT_AUDIT_FAILED = "audit.AuditFailed"

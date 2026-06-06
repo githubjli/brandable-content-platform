@@ -139,3 +139,53 @@ def get_notification_stub():
         raise RuntimeError(
             f"Notification proto stubs not available: {exc}. Run 'make proto-gen'."
         ) from exc
+
+
+def _notification_modules() -> tuple:
+    """Import the generated notification pb2 + grpc modules (generated/ on path)."""
+    import os
+    import sys
+
+    generated = os.path.join(os.path.dirname(__file__), "generated")
+    if generated not in sys.path:
+        sys.path.insert(0, generated)
+    from notification.v1 import notification_pb2, notification_pb2_grpc
+
+    return notification_pb2, notification_pb2_grpc
+
+
+def send_notification(
+    *,
+    idempotency_key: str,
+    channel: str,
+    template_code: str,
+    recipient_user_id: str = "",
+    recipient_address: str = "",
+    variables: dict[str, str] | None = None,
+    timeout: float | None = None,
+) -> dict[str, str]:
+    """Call NotificationService.Send. Returns {"status", "message_id"}.
+
+    Raises grpc.RpcError if the service is unreachable — callers (event handlers)
+    decide whether to retry. Trace context propagates via get_metadata().
+    """
+    notification_pb2, notification_pb2_grpc = _notification_modules()
+    request = notification_pb2.SendRequest(
+        idempotency_key=idempotency_key,
+        channel=channel,
+        template_code=template_code,
+        recipient_user_id=recipient_user_id,
+        recipient_address=recipient_address,
+        variables=variables or {},
+    )
+    grpc_channel = grpc.insecure_channel(settings.GRPC_NOTIFICATION_ADDRESS)
+    try:
+        stub = notification_pb2_grpc.NotificationServiceStub(grpc_channel)
+        response = stub.Send(
+            request,
+            metadata=get_metadata(),
+            timeout=timeout or settings.GRPC_TIMEOUT_SECONDS,
+        )
+        return {"status": response.status, "message_id": response.message_id}
+    finally:
+        grpc_channel.close()

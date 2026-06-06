@@ -25,15 +25,23 @@ _sym_db = _symbol_database.Default()
 from google.protobuf import empty_pb2 as google_dot_protobuf_dot_empty__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\"notification/v1/notification.proto\x12\x0fnotification.v1\x1a\x1bgoogle/protobuf/empty.proto\"\x1f\n\x0cPongResponse\x12\x0f\n\x07message\x18\x01 \x01(\t2T\n\x13NotificationService\x12=\n\x04Ping\x12\x16.google.protobuf.Empty\x1a\x1d.notification.v1.PongResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\"notification/v1/notification.proto\x12\x0fnotification.v1\x1a\x1bgoogle/protobuf/empty.proto\"\x1f\n\x0cPongResponse\x12\x0f\n\x07message\x18\x01 \x01(\t\"\xf6\x01\n\x0bSendRequest\x12\x17\n\x0fidempotency_key\x18\x01 \x01(\t\x12\x0f\n\x07\x63hannel\x18\x02 \x01(\t\x12\x15\n\rtemplate_code\x18\x03 \x01(\t\x12\x19\n\x11recipient_user_id\x18\x04 \x01(\t\x12\x19\n\x11recipient_address\x18\x05 \x01(\t\x12>\n\tvariables\x18\x06 \x03(\x0b\x32+.notification.v1.SendRequest.VariablesEntry\x1a\x30\n\x0eVariablesEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"2\n\x0cSendResponse\x12\x0e\n\x06status\x18\x01 \x01(\t\x12\x12\n\nmessage_id\x18\x02 \x01(\t2\x99\x01\n\x13NotificationService\x12=\n\x04Ping\x12\x16.google.protobuf.Empty\x1a\x1d.notification.v1.PongResponse\x12\x43\n\x04Send\x12\x1c.notification.v1.SendRequest\x1a\x1d.notification.v1.SendResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'notification.v1.notification_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
+  _globals['_SENDREQUEST_VARIABLESENTRY']._loaded_options = None
+  _globals['_SENDREQUEST_VARIABLESENTRY']._serialized_options = b'8\001'
   _globals['_PONGRESPONSE']._serialized_start=84
   _globals['_PONGRESPONSE']._serialized_end=115
-  _globals['_NOTIFICATIONSERVICE']._serialized_start=117
-  _globals['_NOTIFICATIONSERVICE']._serialized_end=201
+  _globals['_SENDREQUEST']._serialized_start=118
+  _globals['_SENDREQUEST']._serialized_end=364
+  _globals['_SENDREQUEST_VARIABLESENTRY']._serialized_start=316
+  _globals['_SENDREQUEST_VARIABLESENTRY']._serialized_end=364
+  _globals['_SENDRESPONSE']._serialized_start=366
+  _globals['_SENDRESPONSE']._serialized_end=416
+  _globals['_NOTIFICATIONSERVICE']._serialized_start=419
+  _globals['_NOTIFICATIONSERVICE']._serialized_end=572
 # @@protoc_insertion_point(module_scope)
