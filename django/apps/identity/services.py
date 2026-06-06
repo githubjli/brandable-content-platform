@@ -628,6 +628,25 @@ def public_profiles(user_ids: list[str]) -> dict[str, dict]:
     }
 
 
+def follower_count(user_id: str) -> int:
+    """Owner follower count for content viewer-context cards. 0 if user missing."""
+    row = User.objects.filter(id=user_id).values_list("follower_count", flat=True).first()
+    return int(row or 0)
+
+
+def following_ids(follower_id: str | None, target_ids: list[str]) -> set[str]:
+    """Subset of target_ids that follower_id follows. Batched for viewer_context
+    (content owner-follow flags). Empty when unauthenticated."""
+    ids = {str(t) for t in target_ids if t}
+    if not follower_id or not ids:
+        return set()
+    rows = Follow.objects.filter(
+        follower_id=follower_id,
+        target_id__in=ids,  # type: ignore[misc]
+    ).values_list("target_id", flat=True)
+    return {str(t) for t in rows}
+
+
 def mark_seller(*, user_id: str) -> None:
     """Flag a user as an approved seller. Idempotent; called by commerce on
     seller-application approval."""
