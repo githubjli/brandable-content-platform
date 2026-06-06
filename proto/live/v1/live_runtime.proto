@@ -1,0 +1,231 @@
+syntax = "proto3";
+
+package live.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// LiveRuntimeService — early gRPC service (live-runtime.md §1). Owns Ant Media
+// integration, viewer presence, and gift/chat broadcast fan-out. V1 skeleton:
+// Ping is implemented; lifecycle/watch/broadcast RPCs are declared and stubbed
+// (UNIMPLEMENTED) until the Ant Media integration + Redis presence land.
+// Idempotency rides on idempotency_key fields (the contract's custom
+// (idempotency.level) option is documentation only and is not declared here).
+service LiveRuntimeService {
+  rpc Ping(PingRequest) returns (PingResponse);
+
+  // --- Stream lifecycle ---
+  rpc CreateStream(CreateStreamRequest) returns (StreamConfig);
+  rpc StartBroadcast(StartBroadcastRequest) returns (StartBroadcastResponse);
+  rpc StopBroadcast(StopBroadcastRequest) returns (StopBroadcastResponse);
+  rpc DeleteStream(DeleteStreamRequest) returns (DeleteStreamResponse);
+
+  // --- Viewer playback config ---
+  rpc GetWatchConfig(GetWatchConfigRequest) returns (WatchConfig);
+  rpc GetStreamStatus(GetStreamStatusRequest) returns (StreamStatusResponse);
+
+  // --- Broadcasts (from Django Outbox handlers) ---
+  rpc BroadcastChat(BroadcastChatRequest) returns (BroadcastResponse);
+  rpc BroadcastGift(BroadcastGiftRequest) returns (BroadcastResponse);
+  rpc BroadcastModeration(BroadcastModerationRequest) returns (BroadcastResponse);
+
+  // --- Viewer events back to Django ---
+  rpc StreamViewerEvents(StreamViewerEventsRequest) returns (stream ViewerEvent);
+}
+
+// --- Stream lifecycle ---
+
+message CreateStreamRequest {
+  string idempotency_key = 1;
+  string stream_id = 2;  // UUID from Django
+  string owner_user_id = 3;
+  string title = 4;
+  string visibility = 5;  // 'public' | 'private'
+  string trace_id = 6;
+}
+
+message StreamConfig {
+  string stream_id = 1;
+  string stream_key = 2;  // for publisher
+  string rtmp_url = 3;
+  WebRTCPublishConfig webrtc = 4;
+  google.protobuf.Timestamp created_at = 5;
+}
+
+message WebRTCPublishConfig {
+  string websocket_url = 1;
+  string ice_servers_json = 2;
+}
+
+message StartBroadcastRequest {
+  string idempotency_key = 1;
+  string stream_id = 2;
+  string publish_session_id = 3;
+}
+
+message StartBroadcastResponse {
+  string stream_id = 1;
+  string status = 2;  // 'live' | 'failed'
+  bool already_started = 3;
+  string ant_media_session_id = 4;
+}
+
+message StopBroadcastRequest {
+  string idempotency_key = 1;
+  string stream_id = 2;
+}
+
+message StopBroadcastResponse {
+  string stream_id = 1;
+  string status = 2;  // 'ended'
+}
+
+message DeleteStreamRequest {
+  string stream_id = 1;
+}
+
+message DeleteStreamResponse {
+  string stream_id = 1;
+  bool deleted = 2;
+}
+
+// --- Watch config (for viewers) ---
+
+message GetWatchConfigRequest {
+  string stream_id = 1;
+  string viewer_user_id = 2;  // optional; for dedup viewer counting
+  string viewer_ip = 3;        // for anonymous dedup
+}
+
+message WatchConfig {
+  string live_id = 1;
+  string status = 2;            // raw: 'idle' | 'ready' | 'live' | 'ended' | 'failed'
+  string effective_status = 3;  // normalized from Ant Media
+  int32 viewer_count = 4;
+  Playback playback = 5;
+  Playback fallback = 6;
+  string thumbnail_url = 7;
+  string preview_image_url = 8;
+  string snapshot_url = 9;
+}
+
+message Playback {
+  string mode = 1;  // 'webrtc' | 'hls'
+  string stream_id = 2;
+  string websocket_url = 3;
+  string hls_url = 4;
+  bool connected = 5;
+}
+
+message GetStreamStatusRequest {
+  string stream_id = 1;
+}
+
+message StreamStatusResponse {
+  string stream_id = 1;
+  string status = 2;
+  string effective_status = 3;
+  bool can_start = 4;
+  bool can_end = 5;
+  int32 viewer_count = 6;
+  PublishHealth publish = 7;
+  PlayHealth play = 8;
+}
+
+message PublishHealth {
+  bool connected = 1;
+  string status = 2;
+}
+
+message PlayHealth {
+  bool connected = 1;
+  string status = 2;
+}
+
+// --- Broadcasts (Django -> Runtime -> viewers) ---
+
+message BroadcastChatRequest {
+  string idempotency_key = 1;
+  string stream_id = 2;
+  ChatMessagePayload message = 3;
+}
+
+message ChatMessagePayload {
+  string message_id = 1;
+  string sender_user_id = 2;
+  string sender_display_name = 3;
+  string sender_avatar_url = 4;
+  string type = 5;  // 'text' | 'product' | 'gift'
+  string content = 6;
+  bytes payload_json = 7;
+  google.protobuf.Timestamp created_at = 8;
+}
+
+message BroadcastGiftRequest {
+  string idempotency_key = 1;
+  string stream_id = 2;
+  GiftPayload gift = 3;
+}
+
+message GiftPayload {
+  string gift_transaction_id = 1;
+  string sender_user_id = 2;
+  string sender_display_name = 3;
+  string sender_avatar_url = 4;
+  string amount = 5;  // decimal string
+  string currency = 6;
+  string payment_method = 7;
+  string gift_code = 8;
+  google.protobuf.Timestamp sent_at = 9;
+}
+
+message BroadcastModerationRequest {
+  string idempotency_key = 1;
+  string stream_id = 2;
+  string action = 3;  // 'delete_message' | 'pin_message'
+  string message_id = 4;
+}
+
+message BroadcastResponse {
+  bool delivered = 1;
+  int32 recipient_count = 2;
+}
+
+// --- Viewer events (Runtime -> Django) ---
+
+message StreamViewerEventsRequest {
+  string subscriber_id = 1;  // Django consumer id for resume
+}
+
+message ViewerEvent {
+  oneof event {
+    ViewerJoined viewer_joined = 1;
+    ViewerLeft viewer_left = 2;
+    StreamFailedEvent stream_failed = 3;
+  }
+  google.protobuf.Timestamp event_time = 4;
+}
+
+message ViewerJoined {
+  string stream_id = 1;
+  string viewer_user_id = 2;
+}
+
+message ViewerLeft {
+  string stream_id = 1;
+  string viewer_user_id = 2;
+  int32 watch_duration_seconds = 3;
+}
+
+message StreamFailedEvent {
+  string stream_id = 1;
+  string reason = 2;
+}
+
+// --- Health ---
+
+message PingRequest {}
+
+message PingResponse {
+  string version = 1;
+  google.protobuf.Timestamp server_time = 2;
+}
