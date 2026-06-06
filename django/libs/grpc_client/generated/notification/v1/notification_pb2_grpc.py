@@ -41,6 +41,11 @@ class NotificationServiceStub:
                 request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
                 response_deserializer=notification_dot_v1_dot_notification__pb2.PongResponse.FromString,
                 _registered_method=True)
+        self.Send = channel.unary_unary(
+                '/notification.v1.NotificationService/Send',
+                request_serializer=notification_dot_v1_dot_notification__pb2.SendRequest.SerializeToString,
+                response_deserializer=notification_dot_v1_dot_notification__pb2.SendResponse.FromString,
+                _registered_method=True)
 
 
 class NotificationServiceServicer:
@@ -54,6 +59,14 @@ class NotificationServiceServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def Send(self, request, context):
+        """Send dispatches a templated notification (email in V1). Idempotent on
+        idempotency_key — re-sends with the same key are de-duplicated.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_NotificationServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -61,6 +74,11 @@ def add_NotificationServiceServicer_to_server(servicer, server):
                     servicer.Ping,
                     request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                     response_serializer=notification_dot_v1_dot_notification__pb2.PongResponse.SerializeToString,
+            ),
+            'Send': grpc.unary_unary_rpc_method_handler(
+                    servicer.Send,
+                    request_deserializer=notification_dot_v1_dot_notification__pb2.SendRequest.FromString,
+                    response_serializer=notification_dot_v1_dot_notification__pb2.SendResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -91,6 +109,33 @@ class NotificationService:
             '/notification.v1.NotificationService/Ping',
             google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
             notification_dot_v1_dot_notification__pb2.PongResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Send(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/notification.v1.NotificationService/Send',
+            notification_dot_v1_dot_notification__pb2.SendRequest.SerializeToString,
+            notification_dot_v1_dot_notification__pb2.SendResponse.FromString,
             options,
             channel_credentials,
             insecure,

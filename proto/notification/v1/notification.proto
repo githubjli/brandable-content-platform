@@ -8,8 +8,26 @@ import "google/protobuf/empty.proto";
 service NotificationService {
   // Ping is a health / canary RPC.
   rpc Ping(google.protobuf.Empty) returns (PongResponse);
+
+  // Send dispatches a templated notification (email in V1). Idempotent on
+  // idempotency_key — re-sends with the same key are de-duplicated.
+  rpc Send(SendRequest) returns (SendResponse);
 }
 
 message PongResponse {
   string message = 1;
+}
+
+message SendRequest {
+  string idempotency_key = 1;
+  string channel = 2;             // "email" (V1) | "push" | "sms" (future)
+  string template_code = 3;       // e.g. "welcome"
+  string recipient_user_id = 4;
+  string recipient_address = 5;   // email address / device token
+  map<string, string> variables = 6;
+}
+
+message SendResponse {
+  string status = 1;              // "QUEUED" | "SENT" | "DUPLICATE" | "FAILED"
+  string message_id = 2;
 }
