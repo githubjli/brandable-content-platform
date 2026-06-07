@@ -26,6 +26,15 @@ class LoginRequestSerializer(serializers.Serializer):
     device_label = serializers.CharField(
         max_length=200, required=False, default="", allow_blank=True
     )
+    totp_code = serializers.CharField(max_length=10, required=False, default="", allow_blank=True)
+
+
+class TwoFactorEnableSerializer(serializers.Serializer):
+    code = serializers.CharField(max_length=10)
+
+
+class TwoFactorDisableSerializer(serializers.Serializer):
+    code = serializers.CharField(max_length=10)
 
 
 class RefreshRequestSerializer(serializers.Serializer):

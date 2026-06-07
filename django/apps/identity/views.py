@@ -32,6 +32,8 @@ from .serializers import (
     ProfileUpdateSerializer,
     RefreshRequestSerializer,
     RegisterRequestSerializer,
+    TwoFactorDisableSerializer,
+    TwoFactorEnableSerializer,
 )
 
 logger = logging.getLogger(__name__)
@@ -81,6 +83,7 @@ class LoginView(APIView):
             password=data["password"],
             device_label=data.get("device_label", ""),
             ip_address=ip or None,
+            totp_code=data.get("totp_code", ""),
         )
         return Response(result, status=status.HTTP_200_OK)
 
@@ -208,6 +211,41 @@ class EmailVerificationConfirmView(APIView):
             verification_token=serializer.validated_data["verification_token"]
         )
         return Response(result)
+
+
+class TwoFactorSetupView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request: Request) -> Response:
+        return Response(services.setup_two_factor(user_id=str(request.user.id)))
+
+
+class TwoFactorEnableView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @idempotent
+    def post(self, request: Request) -> Response:
+        serializer = TwoFactorEnableSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return Response(
+            services.enable_two_factor(
+                user_id=str(request.user.id), code=serializer.validated_data["code"]
+            )
+        )
+
+
+class TwoFactorDisableView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @idempotent
+    def post(self, request: Request) -> Response:
+        serializer = TwoFactorDisableSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return Response(
+            services.disable_two_factor(
+                user_id=str(request.user.id), code=serializer.validated_data["code"]
+            )
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -42,6 +42,8 @@ class User(AbstractBaseModel):
     is_admin = BooleanField(default=False)
     email_verified = BooleanField(default=False)
     email_verified_at = DateTimeField(null=True, blank=True)
+    two_factor_enabled = BooleanField(default=False)
+    totp_secret = CharField(max_length=64, blank=True)  # base32; set at setup, kept while enabled
     follower_count = PositiveIntegerField(default=0)
     following_count = PositiveIntegerField(default=0)
 

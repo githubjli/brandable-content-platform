@@ -46,6 +46,10 @@ urlpatterns = [
         views.EmailVerificationConfirmView.as_view(),
         name="identity-email-verify-confirm",
     ),
+    # Two-factor (TOTP)
+    path("auth/2fa/setup", views.TwoFactorSetupView.as_view(), name="identity-2fa-setup"),
+    path("auth/2fa/enable", views.TwoFactorEnableView.as_view(), name="identity-2fa-enable"),
+    path("auth/2fa/disable", views.TwoFactorDisableView.as_view(), name="identity-2fa-disable"),
     # Account
     path("account/profile", views.ProfileView.as_view(), name="identity-profile"),
     path("account/preferences", views.PreferencesView.as_view(), name="identity-preferences"),

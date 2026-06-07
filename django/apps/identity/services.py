@@ -283,10 +283,12 @@ def login(
     password: str,
     device_label: str = "",
     ip_address: str | None = None,
+    totp_code: str = "",
 ) -> dict:
     """Authenticate user and create a session.
 
-    Returns {"user": ..., "tokens": ..., "session": ...}.
+    Returns {"user": ..., "tokens": ..., "session": ...}. When the account has
+    two-factor enabled, a valid `totp_code` is also required.
     """
     email = _normalize_email(email)
 
@@ -310,6 +312,14 @@ def login(
             code="AUTH_ACCOUNT_DEACTIVATED",
             message="Your account has been deactivated.",
         )
+
+    if user.two_factor_enabled:
+        from . import totp
+
+        if not totp_code:
+            raise AuthError(code="AUTH_2FA_REQUIRED", message="A two-factor code is required.")
+        if not totp.verify(user.totp_secret, totp_code):
+            raise AuthError(code="AUTH_2FA_INVALID", message="Invalid two-factor code.")
 
     token_pair = issue_token_pair(user)
     refresh_jti = uuid.UUID(token_pair["refresh_jti"])
@@ -634,6 +644,101 @@ def confirm_email_verification(*, verification_token: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Two-factor authentication (TOTP)
+# ---------------------------------------------------------------------------
+
+
+def setup_two_factor(*, user_id: str) -> dict:
+    """Generate a fresh TOTP secret for the user (not yet enabled) and return the
+    secret + provisioning URI for an authenticator app."""
+    from . import totp
+
+    try:
+        user = User.objects.get(id=user_id, is_active=True)
+    except User.DoesNotExist:
+        raise NotFoundError(code="USER_NOT_FOUND", message="User not found.")
+    if user.two_factor_enabled:
+        raise ConflictError(
+            code="AUTH_2FA_ALREADY_ENABLED", message="Two-factor is already enabled."
+        )
+
+    secret = totp.generate_secret()
+    user.totp_secret = secret
+    user.save(update_fields=["totp_secret", "updated_at"])
+    return {
+        "secret": secret,
+        "otpauth_uri": totp.provisioning_uri(secret, account_name=user.email),
+    }
+
+
+def enable_two_factor(*, user_id: str, code: str) -> dict:
+    """Verify a TOTP code against the pending secret and turn 2FA on."""
+    from . import totp
+
+    try:
+        user = User.objects.get(id=user_id, is_active=True)
+    except User.DoesNotExist:
+        raise NotFoundError(code="USER_NOT_FOUND", message="User not found.")
+    if user.two_factor_enabled:
+        raise ConflictError(
+            code="AUTH_2FA_ALREADY_ENABLED", message="Two-factor is already enabled."
+        )
+    if not user.totp_secret:
+        raise ValidationError(code="AUTH_2FA_NOT_SET_UP", message="Run two-factor setup first.")
+    if not totp.verify(user.totp_secret, code):
+        raise ValidationError(code="AUTH_2FA_INVALID", message="Invalid verification code.")
+
+    with transaction.atomic():
+        user.two_factor_enabled = True
+        user.save(update_fields=["two_factor_enabled", "updated_at"])
+        _emit_outbox(
+            event_type="identity.TwoFactorEnabled",
+            payload={"user_id": str(user.id), "occurred_at": _now_utc().isoformat()},
+            idempotency_key=f"two_factor_enabled:{user.id}:{uuid.uuid4().hex}",
+            actor_id=str(user.id),
+        )
+        _record_audit(
+            action="identity.enable_two_factor",
+            actor_id=str(user.id),
+            target_id=str(user.id),
+            severity="notable",
+        )
+    return {"two_factor_enabled": True}
+
+
+def disable_two_factor(*, user_id: str, code: str) -> dict:
+    """Disable 2FA after verifying a current code; clears the stored secret."""
+    from . import totp
+
+    try:
+        user = User.objects.get(id=user_id, is_active=True)
+    except User.DoesNotExist:
+        raise NotFoundError(code="USER_NOT_FOUND", message="User not found.")
+    if not user.two_factor_enabled:
+        raise ConflictError(code="AUTH_2FA_NOT_ENABLED", message="Two-factor is not enabled.")
+    if not totp.verify(user.totp_secret, code):
+        raise ValidationError(code="AUTH_2FA_INVALID", message="Invalid verification code.")
+
+    with transaction.atomic():
+        user.two_factor_enabled = False
+        user.totp_secret = ""
+        user.save(update_fields=["two_factor_enabled", "totp_secret", "updated_at"])
+        _emit_outbox(
+            event_type="identity.TwoFactorDisabled",
+            payload={"user_id": str(user.id), "occurred_at": _now_utc().isoformat()},
+            idempotency_key=f"two_factor_disabled:{user.id}:{uuid.uuid4().hex}",
+            actor_id=str(user.id),
+        )
+        _record_audit(
+            action="identity.disable_two_factor",
+            actor_id=str(user.id),
+            target_id=str(user.id),
+            severity="notable",
+        )
+    return {"two_factor_enabled": False}
+
+
+# ---------------------------------------------------------------------------
 # Profile services
 # ---------------------------------------------------------------------------
 
@@ -677,6 +782,7 @@ def get_profile(*, user_id: str) -> dict:
         "is_seller": user.is_seller,
         "is_admin": user.is_admin,
         "email_verified": user.email_verified,
+        "two_factor_enabled": user.two_factor_enabled,
         "follower_count": user.follower_count,
         "following_count": user.following_count,
         "creator_profile": _get_creator_profile_data(user),

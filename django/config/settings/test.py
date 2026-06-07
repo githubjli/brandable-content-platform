@@ -48,6 +48,7 @@ MIGRATION_LINTER_OPTIONS = {
         "0002_shop_catalog",
         "0005_shipment_state_machine",
         "0002_email_verification",
+        "0003_two_factor",
     ],
 }
 
