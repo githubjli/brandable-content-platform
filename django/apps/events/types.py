@@ -16,6 +16,8 @@ IDENTITY_KYC_SUBMITTED = "identity.KycSubmitted"
 IDENTITY_KYC_RESUBMITTED = "identity.KycResubmitted"
 IDENTITY_USER_FOLLOWED = "identity.UserFollowed"
 IDENTITY_USER_UNFOLLOWED = "identity.UserUnfollowed"
+IDENTITY_TWO_FACTOR_ENABLED = "identity.TwoFactorEnabled"
+IDENTITY_TWO_FACTOR_DISABLED = "identity.TwoFactorDisabled"
 
 # Economy
 ECONOMY_WALLET_CREDITED = "economy.WalletCredited"
