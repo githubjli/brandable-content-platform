@@ -150,3 +150,58 @@ class LiveStreamView(AbstractBaseModel):
 
     def __str__(self) -> str:
         return f"LiveStreamView(stream={self.stream_id})"
+
+
+class LiveStreamProduct(AbstractBaseModel):
+    """A commerce Product bound to a stream for in-stream promotion (content-live.md §6).
+
+    Product is referenced by UUID only — no cross-app FK; the card is enriched
+    via commerce.products_by_ids at serialize time.
+    """
+
+    stream = ForeignKey(LiveStream, on_delete=CASCADE, related_name="products")
+    product_id = UUIDField()  # reference to a commerce Product
+    sort_order = PositiveIntegerField(default=0)
+    is_featured = BooleanField(default=False)
+    is_active = BooleanField(default=True)
+
+    class Meta:
+        db_table = "content_live_stream_product"
+        ordering = ["sort_order", "created_at"]
+        constraints = [
+            UniqueConstraint(fields=["stream", "product_id"], name="uq_live_stream_product"),
+        ]
+
+    def __str__(self) -> str:
+        return f"LiveStreamProduct(stream={self.stream_id}, product={self.product_id})"
+
+
+class LiveStreamPaymentMethod(AbstractBaseModel):
+    """A payment method a broadcaster has enabled for in-stream purchases/gifts
+    (content-live.md §6). One row per (stream, method)."""
+
+    MEOW_POINTS = "meow_points"
+    MEOW_CREDIT = "meow_credit"
+    STRIPE = "stripe"
+    BLOCKCHAIN = "blockchain"
+    METHOD = [
+        (MEOW_POINTS, MEOW_POINTS),
+        (MEOW_CREDIT, MEOW_CREDIT),
+        (STRIPE, STRIPE),
+        (BLOCKCHAIN, BLOCKCHAIN),
+    ]
+
+    stream = ForeignKey(LiveStream, on_delete=CASCADE, related_name="payment_methods")
+    method = CharField(max_length=32, choices=METHOD)
+    is_enabled = BooleanField(default=True)
+    sort_order = PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "content_live_stream_payment_method"
+        ordering = ["sort_order", "method"]
+        constraints = [
+            UniqueConstraint(fields=["stream", "method"], name="uq_live_stream_payment_method"),
+        ]
+
+    def __str__(self) -> str:
+        return f"LiveStreamPaymentMethod(stream={self.stream_id}, {self.method})"

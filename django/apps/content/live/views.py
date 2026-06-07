@@ -17,9 +17,12 @@ from libs.pagination.cursor import CursorPagination
 
 from . import services
 from .serializers import (
+    BindProductSerializer,
     CreateStreamSerializer,
     PostChatMessageSerializer,
     SendLiveGiftSerializer,
+    SetPaymentMethodsSerializer,
+    UpdateProductBindingSerializer,
     UpdateStreamSerializer,
 )
 
@@ -75,6 +78,17 @@ class StreamWatchConfigView(APIView):
                 viewer_id=_viewer_id(request),
                 ip_address=_client_ip(request),
             )
+        )
+
+
+class StreamProductsView(APIView):
+    """Viewer-facing list of products bound to a stream (content-live.md §1)."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request: Request, stream_id: str) -> Response:
+        return Response(
+            services.list_stream_products(stream_id=stream_id, viewer_id=_viewer_id(request))
         )
 
 
@@ -230,3 +244,70 @@ class LiveGiftSendView(APIView):
             idempotency_key=idempotency_key,
         )
         return Response(result, status=status.HTTP_201_CREATED)
+
+
+# ---------------------------------------------------------------------------
+# Broadcaster — products & payment methods (content-live.md §6)
+# ---------------------------------------------------------------------------
+
+
+class MyStreamProductsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request: Request, stream_id: str) -> Response:
+        return Response(
+            services.list_my_stream_products(user_id=str(request.user.id), stream_id=stream_id)
+        )
+
+    def post(self, request: Request, stream_id: str) -> Response:
+        serializer = BindProductSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        result = services.bind_product(
+            user_id=str(request.user.id),
+            stream_id=stream_id,
+            product_id=str(data["product_id"]),
+            sort_order=data.get("sort_order", 0),
+            is_featured=data.get("is_featured", False),
+        )
+        return Response(result, status=status.HTTP_201_CREATED)
+
+
+class MyStreamProductDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request: Request, stream_id: str, binding_id: str) -> Response:
+        serializer = UpdateProductBindingSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = services.update_product_binding(
+            user_id=str(request.user.id),
+            stream_id=stream_id,
+            binding_id=binding_id,
+            **dict(serializer.validated_data),
+        )
+        return Response(result)
+
+    def delete(self, request: Request, stream_id: str, binding_id: str) -> Response:
+        services.unbind_product(
+            user_id=str(request.user.id), stream_id=stream_id, binding_id=binding_id
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class MyStreamPaymentMethodsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request: Request, stream_id: str) -> Response:
+        return Response(
+            services.list_payment_methods(user_id=str(request.user.id), stream_id=stream_id)
+        )
+
+    def put(self, request: Request, stream_id: str) -> Response:
+        serializer = SetPaymentMethodsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = services.set_payment_methods(
+            user_id=str(request.user.id),
+            stream_id=stream_id,
+            methods=list(serializer.validated_data["methods"]),
+        )
+        return Response(result)

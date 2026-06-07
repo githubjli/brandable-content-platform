@@ -257,6 +257,26 @@ def serialize_products(products: list[Product]) -> list[dict[str, Any]]:
     return [serialize_product(p, owner=owners.get(str(p.store.owner_user_id))) for p in products]
 
 
+def products_by_ids(*, product_ids: list[str]) -> dict[str, dict[str, Any]]:
+    """Batched buyer-facing product cards keyed by id (active only). For cross-app
+    enrichment (e.g. live product bindings). Missing/inactive ids are omitted."""
+    from apps.identity.services import public_profiles
+
+    if not product_ids:
+        return {}
+    products = list(
+        Product.objects.select_related("store", "category").filter(
+            id__in=product_ids,
+            status=Product.ACTIVE,
+        )
+    )
+    owners = public_profiles([str(p.store.owner_user_id) for p in products])
+    return {
+        str(p.id): serialize_product(p, owner=owners.get(str(p.store.owner_user_id)))
+        for p in products
+    }
+
+
 def get_product(*, product_id: str) -> dict[str, Any]:
     from apps.identity.services import public_profiles
 

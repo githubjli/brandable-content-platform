@@ -22,6 +22,11 @@ urlpatterns = [
         views.StreamWatchConfigView.as_view(),
         name="live-stream-watch-config",
     ),
+    path(
+        "content/live/streams/<uuid:stream_id>/products",
+        views.StreamProductsView.as_view(),
+        name="live-stream-products",
+    ),
     # Broadcaster — lifecycle
     path(
         "content/live/me/streams",
@@ -69,5 +74,21 @@ urlpatterns = [
         "content/live/streams/<uuid:stream_id>/gifts/send",
         views.LiveGiftSendView.as_view(),
         name="live-gift-send",
+    ),
+    # Broadcaster — products & payment methods — §6
+    path(
+        "content/live/me/streams/<uuid:stream_id>/products",
+        views.MyStreamProductsView.as_view(),
+        name="live-my-stream-products",
+    ),
+    path(
+        "content/live/me/streams/<uuid:stream_id>/products/<uuid:binding_id>",
+        views.MyStreamProductDetailView.as_view(),
+        name="live-my-stream-product-detail",
+    ),
+    path(
+        "content/live/me/streams/<uuid:stream_id>/payment-methods",
+        views.MyStreamPaymentMethodsView.as_view(),
+        name="live-my-stream-payment-methods",
     ),
 ]

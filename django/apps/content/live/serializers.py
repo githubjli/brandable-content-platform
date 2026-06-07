@@ -33,3 +33,26 @@ class SendLiveGiftSerializer(serializers.Serializer):
     currency = serializers.CharField(max_length=20)
     payment_method = serializers.ChoiceField(choices=["meow_points", "meow_credit"])
     gift_code = serializers.CharField(max_length=64, required=False, allow_blank=True, default="")
+
+
+class BindProductSerializer(serializers.Serializer):
+    product_id = serializers.UUIDField()
+    sort_order = serializers.IntegerField(required=False, min_value=0, default=0)
+    is_featured = serializers.BooleanField(required=False, default=False)
+
+
+class UpdateProductBindingSerializer(serializers.Serializer):
+    """PATCH semantics — all fields optional."""
+
+    sort_order = serializers.IntegerField(required=False, min_value=0)
+    is_featured = serializers.BooleanField(required=False)
+    is_active = serializers.BooleanField(required=False)
+
+
+class SetPaymentMethodsSerializer(serializers.Serializer):
+    methods = serializers.ListField(
+        child=serializers.ChoiceField(
+            choices=["meow_points", "meow_credit", "stripe", "blockchain"]
+        ),
+        allow_empty=True,
+    )
