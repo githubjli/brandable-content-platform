@@ -27,7 +27,13 @@ from django.db import transaction
 from django.db.models import DecimalField, F, Sum
 from django.db.models.functions import Coalesce
 
-from libs.errors.exceptions import AppError, NotFoundError, UnprocessableError, ValidationError
+from libs.errors.exceptions import (
+    AppError,
+    ConflictError,
+    NotFoundError,
+    UnprocessableError,
+    ValidationError,
+)
 
 from .models import (
     CREDIT_ENTRY_TYPES,
@@ -36,6 +42,7 @@ from .models import (
     CreditLedger,
     CreditPackage,
     CreditRecharge,
+    CreditRedeemRequest,
     CreditWallet,
     DailyRewardClaim,
     PointLedger,
@@ -788,3 +795,215 @@ def verify_recharge(*, user_id: str, order_no: str, txid: str) -> dict:
         "verified": False,
         "notice": "Awaiting payment-service verification (W9).",
     }
+
+
+# ---------------------------------------------------------------------------
+# Credit redeem (admin workflow) — economy.md §7
+# ---------------------------------------------------------------------------
+
+_ACTIVE_REDEEM_STATES = (CreditRedeemRequest.REQUESTED, CreditRedeemRequest.APPROVED)
+
+
+def serialize_redeem(req: CreditRedeemRequest) -> dict[str, Any]:
+    return {
+        "id": str(req.id),
+        "amount": {"amount": str(req.amount), "currency": req.currency},
+        "redeem_method": req.redeem_method,
+        "blockchain_network": req.blockchain_network or None,
+        "account_snapshot": req.account_snapshot,
+        "status": req.status,
+        "admin_note": req.admin_note or None,
+        "resolved_at": _iso(req.resolved_at) if req.resolved_at else None,
+        "created_at": _iso(req.created_at),
+    }
+
+
+def request_credit_redeem(
+    *,
+    user_id: str,
+    amount: Any,
+    redeem_method: str,
+    blockchain_network: str = "",
+    account_snapshot: dict | None = None,
+    idempotency_key: str,
+) -> dict[str, Any]:
+    """Request an MC redeem. Debits the amount via REDEEM_HOLD (funds reserved
+    out of the wallet) and records the request for admin review."""
+    if not idempotency_key:
+        raise ValidationError(
+            code="REDEEM_IDEMPOTENCY_KEY_REQUIRED", message="idempotency_key required."
+        )
+    amt = _money(amount)
+    if amt <= 0:
+        raise UnprocessableError(code="REDEEM_AMOUNT_INVALID", message="amount must be positive.")
+
+    existing = CreditRedeemRequest.objects.filter(idempotency_key=idempotency_key).first()
+    if existing is not None:
+        return serialize_redeem(existing)
+
+    with transaction.atomic():
+        req = CreditRedeemRequest.objects.create(
+            user_id=user_id,
+            amount=amt,
+            currency="MC",
+            redeem_method=redeem_method,
+            blockchain_network=blockchain_network,
+            account_snapshot=account_snapshot or {},
+            idempotency_key=idempotency_key,
+        )
+        ledger = debit(
+            user_id=str(user_id),
+            currency="MC",
+            entry_type="REDEEM_HOLD",
+            amount=amt,
+            idempotency_key=f"redeem_hold:{req.id}",
+            target_type="CreditRedeemRequest",
+            target_id=str(req.id),
+            note="Credit redeem hold",
+        )
+        req.hold_ledger_id = ledger["id"]
+        req.save(update_fields=["hold_ledger_id", "updated_at"])
+        _emit_outbox(
+            event_type="economy.CreditRedeemRequested",
+            payload={
+                "redeem_id": str(req.id),
+                "user_id": str(user_id),
+                "amount": str(amt),
+                "currency": "MC",
+                "redeem_method": redeem_method,
+                "occurred_at": _iso(_now_utc()),
+            },
+            idempotency_key=f"credit_redeem_requested:{req.id}",
+            actor_id=str(user_id),
+        )
+        _record_audit(
+            action="economy.credit_redeem.request",
+            actor_id=str(user_id),
+            actor_type="user",
+            target_id=str(req.id),
+            target_type="CreditRedeemRequest",
+            after_state={"amount": str(amt), "status": req.status},
+        )
+    return serialize_redeem(req)
+
+
+def redeems_queryset(*, user_id: str):
+    return CreditRedeemRequest.objects.filter(user_id=user_id)
+
+
+def _locked_redeem(redeem_id: str) -> CreditRedeemRequest:
+    try:
+        return CreditRedeemRequest.objects.select_for_update().get(id=redeem_id)
+    except CreditRedeemRequest.DoesNotExist:
+        raise NotFoundError(code="REDEEM_NOT_FOUND", message="Redeem request not found.")
+
+
+def approve_credit_redeem(*, redeem_id: str, admin_id: str, admin_note: str = "") -> dict[str, Any]:
+    with transaction.atomic():
+        req = _locked_redeem(redeem_id)
+        if req.status != CreditRedeemRequest.REQUESTED:
+            raise ConflictError(
+                code="REDEEM_NOT_PENDING", message=f"Redeem is already {req.status}."
+            )
+        req.status = CreditRedeemRequest.APPROVED
+        req.admin_note = admin_note
+        req.save(update_fields=["status", "admin_note", "updated_at"])
+        _emit_outbox(
+            event_type="economy.CreditRedeemApproved",
+            payload={"redeem_id": str(req.id), "occurred_at": _iso(_now_utc())},
+            idempotency_key=f"credit_redeem_approved:{req.id}",
+            actor_id=str(admin_id),
+        )
+        _record_audit(
+            action="economy.credit_redeem.approve",
+            actor_id=str(admin_id),
+            target_id=str(req.id),
+            target_type="CreditRedeemRequest",
+            after_state={"status": "approved"},
+        )
+    return serialize_redeem(req)
+
+
+def reject_credit_redeem(*, redeem_id: str, admin_id: str, admin_note: str = "") -> dict[str, Any]:
+    """Reject a redeem and refund the held amount back to the wallet."""
+    with transaction.atomic():
+        req = _locked_redeem(redeem_id)
+        if req.status not in _ACTIVE_REDEEM_STATES:
+            raise ConflictError(
+                code="REDEEM_NOT_PENDING", message=f"Redeem is already {req.status}."
+            )
+        ledger = credit(
+            user_id=str(req.user_id),
+            currency="MC",
+            entry_type="REFUND",
+            amount=req.amount,
+            idempotency_key=f"redeem_refund:{req.id}",
+            target_type="CreditRedeemRequest",
+            target_id=str(req.id),
+            note="Credit redeem rejected — refund",
+        )
+        req.status = CreditRedeemRequest.REJECTED
+        req.refund_ledger_id = ledger["id"]
+        req.admin_note = admin_note
+        req.resolved_at = _now_utc()
+        req.resolved_by = admin_id
+        req.save(
+            update_fields=[
+                "status",
+                "refund_ledger_id",
+                "admin_note",
+                "resolved_at",
+                "resolved_by",
+                "updated_at",
+            ]
+        )
+        _emit_outbox(
+            event_type="economy.CreditRedeemRejected",
+            payload={"redeem_id": str(req.id), "occurred_at": _iso(_now_utc())},
+            idempotency_key=f"credit_redeem_rejected:{req.id}",
+            actor_id=str(admin_id),
+        )
+        _record_audit(
+            action="economy.credit_redeem.reject",
+            actor_id=str(admin_id),
+            target_id=str(req.id),
+            target_type="CreditRedeemRequest",
+            after_state={"status": "rejected"},
+        )
+    return serialize_redeem(req)
+
+
+def complete_credit_redeem(*, redeem_id: str, admin_id: str) -> dict[str, Any]:
+    """Mark an approved redeem completed (the on-chain payout happened out-of-band;
+    the funds were already removed at REDEEM_HOLD)."""
+    with transaction.atomic():
+        req = _locked_redeem(redeem_id)
+        if req.status != CreditRedeemRequest.APPROVED:
+            raise ConflictError(
+                code="REDEEM_NOT_APPROVED",
+                message=f"Redeem must be approved before completion (is {req.status}).",
+            )
+        req.status = CreditRedeemRequest.COMPLETED
+        req.resolved_at = _now_utc()
+        req.resolved_by = admin_id
+        req.save(update_fields=["status", "resolved_at", "resolved_by", "updated_at"])
+        _emit_outbox(
+            event_type="economy.CreditRedeemCompleted",
+            payload={
+                "redeem_id": str(req.id),
+                "user_id": str(req.user_id),
+                "amount": str(req.amount),
+                "currency": "MC",
+                "occurred_at": _iso(_now_utc()),
+            },
+            idempotency_key=f"credit_redeem_completed:{req.id}",
+            actor_id=str(admin_id),
+        )
+        _record_audit(
+            action="economy.credit_redeem.complete",
+            actor_id=str(admin_id),
+            target_id=str(req.id),
+            target_type="CreditRedeemRequest",
+            after_state={"status": "completed"},
+        )
+    return serialize_redeem(req)

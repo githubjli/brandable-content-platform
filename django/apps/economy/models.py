@@ -25,8 +25,10 @@ from django.db.models import (
     CharField,
     CheckConstraint,
     DateField,
+    DateTimeField,
     DecimalField,
     ForeignKey,
+    Index,
     IntegerField,
     JSONField,
     PositiveIntegerField,
@@ -274,3 +276,52 @@ class DailyRewardClaim(AbstractBaseModel):
 
     def __str__(self) -> str:
         return f"DailyRewardClaim(user={self.user_id}, date={self.claim_date})"
+
+
+# ---------------------------------------------------------------------------
+# Credit redeem (admin workflow) — economy.md §7
+# ---------------------------------------------------------------------------
+
+
+class CreditRedeemRequest(AbstractBaseModel):
+    """A user's request to redeem MeowCredit for an on-chain payout (admin-mediated).
+
+    On request the amount is debited via REDEEM_HOLD (funds reserved out of the
+    wallet). Admin completion records the external payout; rejection refunds the
+    held amount. CreditWallet only.
+    """
+
+    REQUESTED = "requested"
+    APPROVED = "approved"
+    COMPLETED = "completed"
+    REJECTED = "rejected"
+    STATUS = [
+        (REQUESTED, REQUESTED),
+        (APPROVED, APPROVED),
+        (COMPLETED, COMPLETED),
+        (REJECTED, REJECTED),
+    ]
+
+    user_id = UUIDField(db_index=True)
+    amount = DecimalField(max_digits=18, decimal_places=4)
+    currency = CharField(max_length=8, default="MC")
+    redeem_method = CharField(max_length=40)  # e.g. blockchain_transfer
+    blockchain_network = CharField(max_length=20, blank=True)  # lbc | ltt | ...
+    account_snapshot = JSONField(default=dict, blank=True)
+    status = CharField(max_length=20, choices=STATUS, default=REQUESTED)
+    hold_ledger_id = UUIDField(null=True, blank=True)  # REDEEM_HOLD debit
+    refund_ledger_id = UUIDField(null=True, blank=True)  # REFUND credit (on reject)
+    admin_note = TextField(blank=True)
+    resolved_at = DateTimeField(null=True, blank=True)
+    resolved_by = UUIDField(null=True, blank=True)
+    idempotency_key = CharField(max_length=128, unique=True)
+
+    class Meta:
+        db_table = "economy_credit_redeem_request"
+        ordering = ["-created_at"]
+        indexes = [
+            Index(fields=["user_id", "status"], name="idx_redeem_user_status"),
+        ]
+
+    def __str__(self) -> str:
+        return f"CreditRedeemRequest({self.user_id}, {self.amount}{self.currency}, {self.status})"
