@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from django.db import transaction
+from django.db.models import F
 
 from libs.errors.exceptions import (
     ConflictError,
@@ -22,7 +23,7 @@ from libs.errors.exceptions import (
 )
 
 from . import runtime
-from .models import LiveCategory, LiveChatMessage, LiveStream
+from .models import LiveCategory, LiveChatMessage, LiveStream, LiveStreamView
 
 logger = logging.getLogger(__name__)
 
@@ -147,6 +148,44 @@ def get_status(*, stream_id: str, viewer_id: str | None = None) -> dict[str, Any
         "viewer_count": stream.viewer_count,
         "publish": {"connected": stream.status == LiveStream.LIVE, "status": stream.status},
         "play": {"connected": stream.status == LiveStream.LIVE, "status": stream.status},
+    }
+
+
+def get_watch_config(
+    *, stream_id: str, viewer_id: str | None = None, ip_address: str | None = None
+) -> dict[str, Any]:
+    """Mobile playback config. Increments viewer_count once per user/IP per minute
+    and asks the runtime for the playback endpoints (WebRTC primary, HLS fallback)."""
+    stream = _get_stream(stream_id)
+    is_owner = viewer_id is not None and str(viewer_id) == str(stream.owner_user_id)
+    if stream.visibility == LiveStream.PRIVATE and not is_owner:
+        raise NotFoundError(code="LIVE_STREAM_NOT_FOUND", message="Stream not found.")
+
+    who = viewer_id or ip_address or "anon"
+    dedup_key = f"{stream.id}:{who}:{_now():%Y%m%d%H%M}"
+    _, created = LiveStreamView.objects.get_or_create(
+        dedup_key=dedup_key,
+        defaults={"stream": stream, "user_id": viewer_id, "ip_address": ip_address},
+    )
+    if created:
+        LiveStream.objects.filter(id=stream.id).update(viewer_count=F("viewer_count") + 1)
+        stream.refresh_from_db(fields=["viewer_count"])
+
+    cfg = runtime.get_watch_config(
+        stream_id=str(stream.id),
+        ant_media_stream_id=stream.ant_media_stream_id,
+        is_live=stream.status == LiveStream.LIVE,
+    )
+    return {
+        "live_id": str(stream.id),
+        "status": stream.status,
+        "effective_status": stream.status,
+        "viewer_count": stream.viewer_count,
+        "playback": cfg["playback"],
+        "fallback": cfg["fallback"],
+        "thumbnail_url": stream.thumbnail_url or None,
+        "preview_image_url": stream.preview_image_url or None,
+        "snapshot_url": stream.snapshot_url or None,
     }
 
 

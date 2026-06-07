@@ -17,6 +17,11 @@ urlpatterns = [
         views.StreamStatusView.as_view(),
         name="live-stream-status",
     ),
+    path(
+        "content/live/streams/<uuid:stream_id>/watch-config",
+        views.StreamWatchConfigView.as_view(),
+        name="live-stream-watch-config",
+    ),
     # Broadcaster — lifecycle
     path(
         "content/live/me/streams",

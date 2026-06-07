@@ -27,6 +27,11 @@ def _viewer_id(request: Request) -> str | None:
     return str(request.user.id) if request.user.is_authenticated else None
 
 
+def _client_ip(request: Request) -> str | None:
+    fwd = request.META.get("HTTP_X_FORWARDED_FOR", "")
+    return fwd.split(",")[0].strip() if fwd else request.META.get("REMOTE_ADDR")
+
+
 # ---------------------------------------------------------------------------
 # Viewer — browse
 # ---------------------------------------------------------------------------
@@ -57,6 +62,19 @@ class StreamStatusView(APIView):
 
     def get(self, request: Request, stream_id: str) -> Response:
         return Response(services.get_status(stream_id=stream_id, viewer_id=_viewer_id(request)))
+
+
+class StreamWatchConfigView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request: Request, stream_id: str) -> Response:
+        return Response(
+            services.get_watch_config(
+                stream_id=stream_id,
+                viewer_id=_viewer_id(request),
+                ip_address=_client_ip(request),
+            )
+        )
 
 
 # ---------------------------------------------------------------------------

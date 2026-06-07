@@ -14,11 +14,13 @@ from django.db.models import (
     CharField,
     DateTimeField,
     ForeignKey,
+    GenericIPAddressField,
     Index,
     JSONField,
     PositiveIntegerField,
     SlugField,
     TextField,
+    UniqueConstraint,
     URLField,
     UUIDField,
 )
@@ -129,3 +131,22 @@ class LiveChatMessage(AbstractBaseModel):
 
     def __str__(self) -> str:
         return f"LiveChatMessage(stream={self.stream_id}, {self.type})"
+
+
+class LiveStreamView(AbstractBaseModel):
+    """A watch-config view event. Deduped per user/IP per minute via dedup_key."""
+
+    stream = ForeignKey(LiveStream, on_delete=CASCADE, related_name="views")
+    user_id = UUIDField(null=True, blank=True, db_index=True)
+    ip_address = GenericIPAddressField(null=True, blank=True)
+    dedup_key = CharField(max_length=200)
+
+    class Meta:
+        db_table = "content_live_stream_view"
+        ordering = ["-created_at"]
+        constraints = [
+            UniqueConstraint(fields=["dedup_key"], name="uq_live_view_dedup"),
+        ]
+
+    def __str__(self) -> str:
+        return f"LiveStreamView(stream={self.stream_id})"
