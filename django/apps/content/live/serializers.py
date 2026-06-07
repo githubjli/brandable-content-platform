@@ -21,3 +21,8 @@ class UpdateStreamSerializer(serializers.Serializer):
     visibility = serializers.ChoiceField(choices=["public", "private"], required=False)
     thumbnail_url = serializers.URLField(required=False, allow_blank=True)
     category_id = serializers.UUIDField(required=False, allow_null=True)
+
+
+class PostChatMessageSerializer(serializers.Serializer):
+    content = serializers.CharField(required=False, allow_blank=True, default="")
+    product_id = serializers.UUIDField(required=False, allow_null=True)

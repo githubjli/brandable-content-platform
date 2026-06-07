@@ -8,6 +8,7 @@ reached through a runtime adapter; the credentials it returns are cached here.
 from __future__ import annotations
 
 from django.db.models import (
+    CASCADE,
     SET_NULL,
     BooleanField,
     CharField,
@@ -99,3 +100,32 @@ class LiveStream(AbstractBaseModel):
 
     def __str__(self) -> str:
         return f"LiveStream({self.title}, {self.status})"
+
+
+class LiveChatMessage(AbstractBaseModel):
+    """A live-stream chat message. Persisted here for history; realtime delivery to
+    WebSocket viewers is the live-runtime service's job (via the outbox event)."""
+
+    TEXT = "text"
+    PRODUCT = "product"
+    GIFT = "gift"
+    TYPE = [(TEXT, TEXT), (PRODUCT, PRODUCT), (GIFT, GIFT)]
+
+    stream = ForeignKey(LiveStream, on_delete=CASCADE, related_name="chat_messages")
+    user_id = UUIDField(db_index=True)
+    type = CharField(max_length=20, choices=TYPE, default=TEXT)
+    content = TextField(blank=True)
+    product_id = UUIDField(null=True, blank=True)  # reference to a commerce Product
+    payload = JSONField(default=dict, blank=True)  # gift context for type=gift
+    is_pinned = BooleanField(default=False)
+    is_active = BooleanField(default=True)  # soft delete
+
+    class Meta:
+        db_table = "content_live_chat_message"
+        ordering = ["created_at"]
+        indexes = [
+            Index(fields=["stream", "is_active", "created_at"], name="idx_chat_stream_created"),
+        ]
+
+    def __str__(self) -> str:
+        return f"LiveChatMessage(stream={self.stream_id}, {self.type})"

@@ -43,4 +43,20 @@ urlpatterns = [
         views.MyStreamEndView.as_view(),
         name="live-my-stream-end",
     ),
+    # Chat — §2
+    path(
+        "content/live/streams/<uuid:stream_id>/chat/messages",
+        views.ChatMessagesView.as_view(),
+        name="live-chat-messages",
+    ),
+    path(
+        "content/live/streams/<uuid:stream_id>/chat/messages/<uuid:message_id>",
+        views.ChatMessageDetailView.as_view(),
+        name="live-chat-message-detail",
+    ),
+    path(
+        "content/live/streams/<uuid:stream_id>/chat/messages/<uuid:message_id>/pin",
+        views.ChatMessagePinView.as_view(),
+        name="live-chat-message-pin",
+    ),
 ]

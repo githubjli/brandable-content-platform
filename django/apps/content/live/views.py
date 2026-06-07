@@ -16,7 +16,11 @@ from libs.idempotency import idempotent
 from libs.pagination.cursor import CursorPagination
 
 from . import services
-from .serializers import CreateStreamSerializer, UpdateStreamSerializer
+from .serializers import (
+    CreateStreamSerializer,
+    PostChatMessageSerializer,
+    UpdateStreamSerializer,
+)
 
 
 def _viewer_id(request: Request) -> str | None:
@@ -124,3 +128,58 @@ class MyStreamEndView(APIView):
     @idempotent
     def post(self, request: Request, stream_id: str) -> Response:
         return Response(services.end_stream(user_id=str(request.user.id), stream_id=stream_id))
+
+
+# ---------------------------------------------------------------------------
+# Chat — content-live.md §2
+# ---------------------------------------------------------------------------
+
+
+class ChatMessagesView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request: Request, stream_id: str) -> Response:
+        return Response(
+            services.list_messages(
+                stream_id=stream_id,
+                after_id=request.query_params.get("after_id"),
+                limit=request.query_params.get("limit", 50),
+                viewer_id=_viewer_id(request),
+            )
+        )
+
+    def post(self, request: Request, stream_id: str) -> Response:
+        if not request.user.is_authenticated:
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+        serializer = PostChatMessageSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        product = data.get("product_id")
+        result = services.post_message(
+            user_id=str(request.user.id),
+            stream_id=stream_id,
+            content=data.get("content", ""),
+            product_id=str(product) if product else None,
+        )
+        return Response(result, status=status.HTTP_201_CREATED)
+
+
+class ChatMessageDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request: Request, stream_id: str, message_id: str) -> Response:
+        services.delete_message(
+            user_id=str(request.user.id), stream_id=stream_id, message_id=message_id
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ChatMessagePinView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request: Request, stream_id: str, message_id: str) -> Response:
+        return Response(
+            services.pin_message(
+                user_id=str(request.user.id), stream_id=stream_id, message_id=message_id
+            )
+        )

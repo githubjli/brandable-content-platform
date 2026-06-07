@@ -94,6 +94,11 @@ CONTENT_LIVE_STREAM_CREATED = "content.live.StreamCreated"
 CONTENT_LIVE_STREAM_STARTED = "content.live.StreamStarted"
 CONTENT_LIVE_STREAM_ENDED = "content.live.StreamEnded"
 
+# Content — live (V3 chat)
+CONTENT_LIVE_CHAT_MESSAGE_POSTED = "content.live.ChatMessagePosted"
+CONTENT_LIVE_CHAT_MESSAGE_DELETED = "content.live.ChatMessageDeleted"
+CONTENT_LIVE_CHAT_MESSAGE_PINNED = "content.live.ChatMessagePinned"
+
 # Membership (V1 grant + V2 purchase)
 MEMBERSHIP_MEMBERSHIP_GRANTED = "membership.MembershipGranted"
 MEMBERSHIP_ORDER_CREATED = "membership.MembershipOrderCreated"

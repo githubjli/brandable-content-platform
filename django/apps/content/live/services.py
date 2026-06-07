@@ -13,10 +13,16 @@ from typing import Any
 
 from django.db import transaction
 
-from libs.errors.exceptions import ConflictError, ForbiddenError, NotFoundError, ValidationError
+from libs.errors.exceptions import (
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    UnprocessableError,
+    ValidationError,
+)
 
 from . import runtime
-from .models import LiveCategory, LiveStream
+from .models import LiveCategory, LiveChatMessage, LiveStream
 
 logger = logging.getLogger(__name__)
 
@@ -328,3 +334,151 @@ def update_stream(*, user_id: str, stream_id: str, **fields: Any) -> dict[str, A
             setattr(stream, key, value)
         stream.save()
     return _serialize_owned(stream, broadcaster=True)
+
+
+# ---------------------------------------------------------------------------
+# Chat — content-live.md §2
+# ---------------------------------------------------------------------------
+
+_CHAT_MAX = 2000
+
+
+def serialize_message(msg: LiveChatMessage, *, user: dict | None = None) -> dict[str, Any]:
+    return {
+        "id": str(msg.id),
+        "live_id": str(msg.stream_id),
+        "type": msg.type,
+        "content": msg.content or None,
+        "user": user or {"id": str(msg.user_id), "display_name": None, "avatar_url": None},
+        "product": {"id": str(msg.product_id)} if msg.product_id else None,
+        "payload": msg.payload or None,
+        "is_pinned": msg.is_pinned,
+        "created_at": _iso(msg.created_at),
+    }
+
+
+def serialize_messages(messages: list[LiveChatMessage]) -> list[dict[str, Any]]:
+    from apps.identity.services import public_profiles
+
+    users = public_profiles([str(m.user_id) for m in messages])
+    return [serialize_message(m, user=users.get(str(m.user_id))) for m in messages]
+
+
+def list_messages(
+    *, stream_id: str, after_id: str | None = None, limit: int = 50, viewer_id: str | None = None
+) -> dict[str, Any]:
+    stream = _get_stream(stream_id)
+    is_owner = viewer_id is not None and str(viewer_id) == str(stream.owner_user_id)
+    if stream.visibility == LiveStream.PRIVATE and not is_owner:
+        raise NotFoundError(code="LIVE_STREAM_NOT_FOUND", message="Stream not found.")
+
+    limit = max(1, min(int(limit or 50), 100))
+    qs = LiveChatMessage.objects.filter(stream=stream, is_active=True).order_by("created_at")
+    if after_id:
+        after = LiveChatMessage.objects.filter(id=after_id, stream=stream).first()
+        if after is not None:
+            qs = qs.filter(created_at__gt=after.created_at)
+    messages = list(qs[:limit])
+    return {
+        "results": serialize_messages(messages),
+        "next_after_id": str(messages[-1].id) if messages else None,
+    }
+
+
+def post_message(
+    *, user_id: str, stream_id: str, content: str = "", product_id: str | None = None
+) -> dict[str, Any]:
+    text = (content or "").strip()
+    msg_type = LiveChatMessage.PRODUCT if product_id else LiveChatMessage.TEXT
+    if msg_type == LiveChatMessage.TEXT and not text:
+        raise ValidationError(code="CHAT_EMPTY", message="Message content is required.")
+    if len(text) > _CHAT_MAX:
+        raise UnprocessableError(
+            code="CHAT_TOO_LONG", message=f"Message exceeds {_CHAT_MAX} characters."
+        )
+
+    with transaction.atomic():
+        stream = LiveStream.objects.select_for_update(of=("self",)).filter(id=stream_id).first()
+        if stream is None:
+            raise NotFoundError(code="LIVE_STREAM_NOT_FOUND", message="Stream not found.")
+        if stream.status != LiveStream.LIVE:
+            raise UnprocessableError(code="LIVE_STREAM_NOT_LIVE", message="The stream is not live.")
+        msg = LiveChatMessage.objects.create(
+            stream=stream,
+            user_id=user_id,
+            type=msg_type,
+            content=text,
+            product_id=product_id,
+        )
+        _emit(
+            event_type="content.live.ChatMessagePosted",
+            payload={
+                "stream_id": str(stream.id),
+                "message_id": str(msg.id),
+                "user_id": str(user_id),
+                "type": msg_type,
+                "occurred_at": _iso(_now()),
+            },
+            idempotency_key=f"live_chat_posted:{msg.id}",
+            actor_id=str(user_id),
+        )
+    return serialize_messages([msg])[0]
+
+
+def _get_message(stream: LiveStream, message_id: str) -> LiveChatMessage:
+    msg = LiveChatMessage.objects.filter(id=message_id, stream=stream, is_active=True).first()
+    if msg is None:
+        raise NotFoundError(code="CHAT_MESSAGE_NOT_FOUND", message="Message not found.")
+    return msg
+
+
+def delete_message(*, user_id: str, stream_id: str, message_id: str) -> None:
+    """Soft delete. Allowed for the broadcaster or the message author."""
+    with transaction.atomic():
+        stream = _get_stream(stream_id)
+        msg = _get_message(stream, message_id)
+        is_broadcaster = str(user_id) == str(stream.owner_user_id)
+        is_author = str(user_id) == str(msg.user_id)
+        if not (is_broadcaster or is_author):
+            raise ForbiddenError(
+                code="CHAT_DELETE_FORBIDDEN", message="You cannot delete this message."
+            )
+        msg.is_active = False
+        msg.save(update_fields=["is_active", "updated_at"])
+        _emit(
+            event_type="content.live.ChatMessageDeleted",
+            payload={
+                "stream_id": str(stream.id),
+                "message_id": str(msg.id),
+                "occurred_at": _iso(_now()),
+            },
+            idempotency_key=f"live_chat_deleted:{msg.id}",
+            actor_id=str(user_id),
+        )
+
+
+def pin_message(
+    *, user_id: str, stream_id: str, message_id: str, pinned: bool = True
+) -> dict[str, Any]:
+    """Pin/unpin a message. Broadcaster only."""
+    with transaction.atomic():
+        stream = _get_stream(stream_id)
+        if str(user_id) != str(stream.owner_user_id):
+            raise ForbiddenError(
+                code="CHAT_PIN_FORBIDDEN", message="Only the broadcaster can pin messages."
+            )
+        msg = _get_message(stream, message_id)
+        msg.is_pinned = pinned
+        msg.save(update_fields=["is_pinned", "updated_at"])
+        _emit(
+            event_type="content.live.ChatMessagePinned",
+            payload={
+                "stream_id": str(stream.id),
+                "message_id": str(msg.id),
+                "is_pinned": pinned,
+                "occurred_at": _iso(_now()),
+            },
+            idempotency_key=f"live_chat_pinned:{msg.id}:{_now().timestamp()}",
+            actor_id=str(user_id),
+        )
+    return serialize_messages([msg])[0]
