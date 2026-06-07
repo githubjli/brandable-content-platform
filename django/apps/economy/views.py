@@ -12,6 +12,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from libs.idempotency import idempotent
+from libs.jwt_auth.permissions import IsAdmin
 from libs.pagination.cursor import CursorPagination
 
 from . import services
@@ -19,6 +20,8 @@ from .serializers import (
     CreditRechargeCreateSerializer,
     CreditRechargeSubmitTxidSerializer,
     CreditRechargeVerifySerializer,
+    CreditRedeemCreateSerializer,
+    RedeemReviewSerializer,
 )
 
 
@@ -180,3 +183,78 @@ class CreditRechargeVerifyView(APIView):
             txid=serializer.validated_data["txid"],
         )
         return Response(result)
+
+
+# ---------------------------------------------------------------------------
+# Credit redeem (admin workflow) — economy.md §7
+# ---------------------------------------------------------------------------
+
+
+class CreditRedeemView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request: Request) -> Response:
+        qs = services.redeems_queryset(user_id=_uid(request))
+        paginator = CursorPagination()
+        page = paginator.paginate_queryset(qs, request, view=self)
+        return paginator.get_paginated_response([services.serialize_redeem(r) for r in page])
+
+    @idempotent
+    def post(self, request: Request) -> Response:
+        serializer = CreditRedeemCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        idempotency_key = request.META.get("HTTP_IDEMPOTENCY_KEY") or request.headers.get(
+            "Idempotency-Key", ""
+        )
+        result = services.request_credit_redeem(
+            user_id=_uid(request),
+            amount=data["amount"],
+            redeem_method=data["redeem_method"],
+            blockchain_network=data.get("blockchain_network", ""),
+            account_snapshot=data.get("account_snapshot", {}),
+            idempotency_key=idempotency_key,
+        )
+        return Response(result, status=status.HTTP_201_CREATED)
+
+
+class CreditRedeemApproveView(APIView):
+    permission_classes = [IsAdmin]
+
+    @idempotent
+    def post(self, request: Request, redeem_id: str) -> Response:
+        serializer = RedeemReviewSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return Response(
+            services.approve_credit_redeem(
+                redeem_id=redeem_id,
+                admin_id=_uid(request),
+                admin_note=serializer.validated_data.get("admin_note", ""),
+            )
+        )
+
+
+class CreditRedeemRejectView(APIView):
+    permission_classes = [IsAdmin]
+
+    @idempotent
+    def post(self, request: Request, redeem_id: str) -> Response:
+        serializer = RedeemReviewSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return Response(
+            services.reject_credit_redeem(
+                redeem_id=redeem_id,
+                admin_id=_uid(request),
+                admin_note=serializer.validated_data.get("admin_note", ""),
+            )
+        )
+
+
+class CreditRedeemCompleteView(APIView):
+    permission_classes = [IsAdmin]
+
+    @idempotent
+    def post(self, request: Request, redeem_id: str) -> Response:
+        return Response(
+            services.complete_credit_redeem(redeem_id=redeem_id, admin_id=_uid(request))
+        )

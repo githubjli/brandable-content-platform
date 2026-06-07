@@ -39,6 +39,12 @@ PAYMENTS_WEBHOOK_RECEIVED = "payments.WebhookReceived"
 # Economy (recharge fulfilment, emitted once payment settles)
 ECONOMY_CREDIT_RECHARGE_FULFILLED = "economy.CreditRechargeFulfilled"
 
+# Economy (credit redeem — admin workflow)
+ECONOMY_CREDIT_REDEEM_REQUESTED = "economy.CreditRedeemRequested"
+ECONOMY_CREDIT_REDEEM_APPROVED = "economy.CreditRedeemApproved"
+ECONOMY_CREDIT_REDEEM_REJECTED = "economy.CreditRedeemRejected"
+ECONOMY_CREDIT_REDEEM_COMPLETED = "economy.CreditRedeemCompleted"
+
 # Commerce (V1-AVS)
 COMMERCE_ORDER_CREATED = "commerce.OrderCreated"
 COMMERCE_ORDER_PAID = "commerce.OrderPaid"

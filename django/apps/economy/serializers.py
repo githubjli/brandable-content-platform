@@ -20,3 +20,18 @@ class CreditRechargeSubmitTxidSerializer(serializers.Serializer):
 
 class CreditRechargeVerifySerializer(serializers.Serializer):
     txid = serializers.CharField(max_length=256)
+
+
+class CreditRedeemCreateSerializer(serializers.Serializer):
+    amount = serializers.DecimalField(max_digits=18, decimal_places=4, min_value=0)
+    redeem_method = serializers.CharField(max_length=40)
+    blockchain_network = serializers.CharField(
+        max_length=20, required=False, allow_blank=True, default=""
+    )
+    account_snapshot = serializers.DictField(required=False, default=dict)
+
+
+class RedeemReviewSerializer(serializers.Serializer):
+    """Admin note for approve/reject."""
+
+    admin_note = serializers.CharField(required=False, allow_blank=True, default="")

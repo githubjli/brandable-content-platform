@@ -70,4 +70,25 @@ urlpatterns = [
         views.CreditRechargeVerifyView.as_view(),
         name="economy-recharge-verify",
     ),
+    # Credit redeem (admin workflow) — §7
+    path(
+        "economy/credit-redeems",
+        views.CreditRedeemView.as_view(),
+        name="economy-credit-redeems",
+    ),
+    path(
+        "economy/credit-redeems/<uuid:redeem_id>/approve",
+        views.CreditRedeemApproveView.as_view(),
+        name="economy-credit-redeem-approve",
+    ),
+    path(
+        "economy/credit-redeems/<uuid:redeem_id>/reject",
+        views.CreditRedeemRejectView.as_view(),
+        name="economy-credit-redeem-reject",
+    ),
+    path(
+        "economy/credit-redeems/<uuid:redeem_id>/complete",
+        views.CreditRedeemCompleteView.as_view(),
+        name="economy-credit-redeem-complete",
+    ),
 ]
