@@ -23,7 +23,14 @@ from libs.errors.exceptions import (
 )
 
 from . import runtime
-from .models import LiveCategory, LiveChatMessage, LiveStream, LiveStreamView
+from .models import (
+    LiveCategory,
+    LiveChatMessage,
+    LiveStream,
+    LiveStreamPaymentMethod,
+    LiveStreamProduct,
+    LiveStreamView,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -570,3 +577,143 @@ def send_live_gift(
         "broadcast_status": "queued",
     }
     return result
+
+
+# ---------------------------------------------------------------------------
+# Broadcaster — products & payment methods (content-live.md §6)
+# ---------------------------------------------------------------------------
+
+_PAYMENT_METHODS = {m for m, _ in LiveStreamPaymentMethod.METHOD}
+
+
+def serialize_product_binding(
+    binding: LiveStreamProduct, *, product: dict | None = None
+) -> dict[str, Any]:
+    return {
+        "id": str(binding.id),
+        "product_id": str(binding.product_id),
+        "sort_order": binding.sort_order,
+        "is_featured": binding.is_featured,
+        "is_active": binding.is_active,
+        "product": product,  # commerce card, None if missing/inactive
+        "created_at": _iso(binding.created_at),
+    }
+
+
+def _serialize_bindings(bindings: list[LiveStreamProduct]) -> list[dict[str, Any]]:
+    from apps.commerce.services import products_by_ids
+
+    cards = products_by_ids(product_ids=[str(b.product_id) for b in bindings])
+    return [serialize_product_binding(b, product=cards.get(str(b.product_id))) for b in bindings]
+
+
+def list_stream_products(*, stream_id: str, viewer_id: str | None = None) -> dict[str, Any]:
+    """Viewer-facing: active product bindings for a stream (promotion list)."""
+    stream = _get_stream(stream_id)
+    is_owner = viewer_id is not None and str(viewer_id) == str(stream.owner_user_id)
+    if stream.visibility == LiveStream.PRIVATE and not is_owner:
+        raise NotFoundError(code="LIVE_STREAM_NOT_FOUND", message="Stream not found.")
+    bindings = list(stream.products.filter(is_active=True))
+    return {"results": _serialize_bindings(bindings)}
+
+
+def list_my_stream_products(*, user_id: str, stream_id: str) -> dict[str, Any]:
+    """Broadcaster-facing: all product bindings (incl. inactive)."""
+    stream = _owned_stream(user_id, stream_id)
+    return {"results": _serialize_bindings(list(stream.products.all()))}
+
+
+def bind_product(
+    *,
+    user_id: str,
+    stream_id: str,
+    product_id: str,
+    sort_order: int = 0,
+    is_featured: bool = False,
+) -> dict[str, Any]:
+    from apps.commerce.services import get_product
+
+    with transaction.atomic():
+        stream = _owned_stream(user_id, stream_id, lock=True)
+        product = get_product(product_id=str(product_id))  # raises PRODUCT_NOT_FOUND
+        if stream.products.filter(product_id=product_id).exists():
+            raise ConflictError(
+                code="LIVE_PRODUCT_ALREADY_BOUND",
+                message="Product is already bound to this stream.",
+            )
+        binding = LiveStreamProduct.objects.create(
+            stream=stream,
+            product_id=product_id,
+            sort_order=sort_order,
+            is_featured=is_featured,
+        )
+    return serialize_product_binding(binding, product=product)
+
+
+def _get_binding(stream: LiveStream, binding_id: str) -> LiveStreamProduct:
+    binding = stream.products.filter(id=binding_id).first()
+    if binding is None:
+        raise NotFoundError(code="LIVE_PRODUCT_NOT_FOUND", message="Product binding not found.")
+    return binding
+
+
+def update_product_binding(
+    *, user_id: str, stream_id: str, binding_id: str, **fields: Any
+) -> dict[str, Any]:
+    allowed = {"sort_order", "is_featured", "is_active"}
+    with transaction.atomic():
+        stream = _owned_stream(user_id, stream_id, lock=True)
+        binding = _get_binding(stream, binding_id)
+        updates = {k: v for k, v in fields.items() if k in allowed}
+        for key, value in updates.items():
+            setattr(binding, key, value)
+        if updates:
+            binding.save(update_fields=[*updates.keys(), "updated_at"])
+    from apps.commerce.services import products_by_ids
+
+    card = products_by_ids(product_ids=[str(binding.product_id)]).get(str(binding.product_id))
+    return serialize_product_binding(binding, product=card)
+
+
+def unbind_product(*, user_id: str, stream_id: str, binding_id: str) -> None:
+    with transaction.atomic():
+        stream = _owned_stream(user_id, stream_id, lock=True)
+        _get_binding(stream, binding_id).delete()
+
+
+def serialize_payment_method(pm: LiveStreamPaymentMethod) -> dict[str, Any]:
+    return {
+        "id": str(pm.id),
+        "method": pm.method,
+        "is_enabled": pm.is_enabled,
+        "sort_order": pm.sort_order,
+    }
+
+
+def list_payment_methods(*, user_id: str, stream_id: str) -> dict[str, Any]:
+    stream = _owned_stream(user_id, stream_id)
+    methods = [serialize_payment_method(pm) for pm in stream.payment_methods.all()]
+    return {"results": methods}
+
+
+def set_payment_methods(*, user_id: str, stream_id: str, methods: list[str]) -> dict[str, Any]:
+    """Replace-all config: the methods in the list become enabled (in order); any
+    previously-enabled method not listed is disabled. Unknown methods rejected."""
+    ordered = list(dict.fromkeys(methods))  # de-dupe, preserve order
+    unknown = [m for m in ordered if m not in _PAYMENT_METHODS]
+    if unknown:
+        raise ValidationError(
+            code="LIVE_INVALID_PAYMENT_METHOD",
+            message=f"Unknown payment method(s): {', '.join(unknown)}.",
+        )
+    with transaction.atomic():
+        stream = _owned_stream(user_id, stream_id, lock=True)
+        enabled = set(ordered)
+        for method in _PAYMENT_METHODS:
+            sort_order = ordered.index(method) if method in enabled else 0
+            LiveStreamPaymentMethod.objects.update_or_create(
+                stream=stream,
+                method=method,
+                defaults={"is_enabled": method in enabled, "sort_order": sort_order},
+            )
+    return list_payment_methods(user_id=user_id, stream_id=stream_id)
