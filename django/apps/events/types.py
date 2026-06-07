@@ -77,6 +77,10 @@ CONTENT_VIDEO_COMMENTED = "content.VideoCommented"
 CONTENT_VIDEO_SHARED = "content.VideoShared"
 CONTENT_VIDEO_VIEWED = "content.VideoViewed"
 
+# Membership (V1 grant + V2 purchase)
+MEMBERSHIP_MEMBERSHIP_GRANTED = "membership.MembershipGranted"
+MEMBERSHIP_ORDER_CREATED = "membership.MembershipOrderCreated"
+
 # Platform
 PLATFORM_CONFIG_UPDATED = "platform.ConfigUpdated"
 PLATFORM_FEATURE_TOGGLED = "platform.FeatureToggled"
