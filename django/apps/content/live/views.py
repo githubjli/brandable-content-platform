@@ -19,6 +19,7 @@ from . import services
 from .serializers import (
     CreateStreamSerializer,
     PostChatMessageSerializer,
+    SendLiveGiftSerializer,
     UpdateStreamSerializer,
 )
 
@@ -183,3 +184,31 @@ class ChatMessagePinView(APIView):
                 user_id=str(request.user.id), stream_id=stream_id, message_id=message_id
             )
         )
+
+
+# ---------------------------------------------------------------------------
+# Live gift — content-live.md §4
+# ---------------------------------------------------------------------------
+
+
+class LiveGiftSendView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @idempotent
+    def post(self, request: Request, stream_id: str) -> Response:
+        serializer = SendLiveGiftSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        idempotency_key = request.META.get("HTTP_IDEMPOTENCY_KEY") or request.headers.get(
+            "Idempotency-Key", ""
+        )
+        result = services.send_live_gift(
+            sender_id=str(request.user.id),
+            stream_id=stream_id,
+            amount=data["amount"],
+            currency=data["currency"],
+            payment_method=data["payment_method"],
+            gift_code=data.get("gift_code", ""),
+            idempotency_key=idempotency_key,
+        )
+        return Response(result, status=status.HTTP_201_CREATED)
