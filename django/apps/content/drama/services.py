@@ -213,6 +213,19 @@ def _get_active_series(series_id: str) -> DramaSeries:
     return series
 
 
+def gift_target(series_id: str) -> str:
+    """Validate an active series and return its owner_user_id (gift receiver).
+    Cross-app boundary for apps.content.gift."""
+    owner = (
+        DramaSeries.objects.filter(id=series_id, is_active=True)
+        .values_list("owner_user_id", flat=True)
+        .first()
+    )
+    if owner is None:
+        raise NotFoundError(code="TARGET_NOT_FOUND", message="Gift target not found.")
+    return str(owner)
+
+
 def get_series(*, series_id: str, viewer_id: str | None = None) -> dict[str, Any]:
     from apps.identity.services import following_ids, public_profiles
 

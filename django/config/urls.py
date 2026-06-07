@@ -19,6 +19,7 @@ urlpatterns = [
     path("api/v1/", include("apps.content.video.urls")),
     path("api/v1/", include("apps.content.drama.urls")),
     path("api/v1/", include("apps.content.live.urls")),
+    path("api/v1/", include("apps.content.gift.urls")),
     path("api/v1/", include("apps.commerce.urls")),
     path("api/v1/", include("apps.membership.urls")),
     # Well-known (JWKS)
