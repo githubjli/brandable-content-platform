@@ -35,6 +35,17 @@ urlpatterns = [
     path(
         "auth/password/change", views.PasswordChangeView.as_view(), name="identity-password-change"
     ),
+    # Email verification
+    path(
+        "auth/email/verify/request",
+        views.EmailVerificationRequestView.as_view(),
+        name="identity-email-verify-request",
+    ),
+    path(
+        "auth/email/verify/confirm",
+        views.EmailVerificationConfirmView.as_view(),
+        name="identity-email-verify-confirm",
+    ),
     # Account
     path("account/profile", views.ProfileView.as_view(), name="identity-profile"),
     path("account/preferences", views.PreferencesView.as_view(), name="identity-preferences"),

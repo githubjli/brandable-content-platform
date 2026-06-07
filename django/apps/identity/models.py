@@ -40,6 +40,8 @@ class User(AbstractBaseModel):
     is_creator = BooleanField(default=False)
     is_seller = BooleanField(default=False)
     is_admin = BooleanField(default=False)
+    email_verified = BooleanField(default=False)
+    email_verified_at = DateTimeField(null=True, blank=True)
     follower_count = PositiveIntegerField(default=0)
     following_count = PositiveIntegerField(default=0)
 
@@ -184,3 +186,18 @@ class PasswordResetToken(AbstractBaseModel):
 
     def __str__(self) -> str:
         return f"PasswordResetToken(user={self.user_id}, expires={self.expires_at})"
+
+
+class EmailVerificationToken(AbstractBaseModel):
+    """Single-use email verification token (raw token emailed; only hash stored)."""
+
+    user = ForeignKey(User, on_delete=CASCADE, related_name="email_verification_tokens")
+    token_hash = CharField(max_length=256, unique=True)  # SHA-256 of raw token
+    expires_at = DateTimeField()
+    used_at = DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "identity_email_verification_token"
+
+    def __str__(self) -> str:
+        return f"EmailVerificationToken(user={self.user_id}, expires={self.expires_at})"

@@ -51,6 +51,10 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
     new_password = serializers.CharField(min_length=8, write_only=True)
 
 
+class EmailVerificationConfirmSerializer(serializers.Serializer):
+    verification_token = serializers.CharField()
+
+
 class ProfileUpdateSerializer(serializers.Serializer):
     display_name = serializers.CharField(max_length=100, required=False)
     first_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
