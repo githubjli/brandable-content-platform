@@ -1,0 +1,126 @@
+"""Views for content.live (content-live.md §1, §5). Parse → service → respond.
+
+Public browse/detail/status accept optional auth (owner sees broadcaster_config);
+the broadcaster lifecycle requires auth + creator.
+"""
+
+from __future__ import annotations
+
+from rest_framework import status
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.request import Request
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from libs.idempotency import idempotent
+from libs.pagination.cursor import CursorPagination
+
+from . import services
+from .serializers import CreateStreamSerializer, UpdateStreamSerializer
+
+
+def _viewer_id(request: Request) -> str | None:
+    return str(request.user.id) if request.user.is_authenticated else None
+
+
+# ---------------------------------------------------------------------------
+# Viewer — browse
+# ---------------------------------------------------------------------------
+
+
+class StreamListView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request: Request) -> Response:
+        qs = services.streams_queryset(
+            status=request.query_params.get("status"),
+            owner_id=request.query_params.get("owner_id"),
+        )
+        paginator = CursorPagination()
+        page = paginator.paginate_queryset(qs, request, view=self)
+        return paginator.get_paginated_response(services.serialize_streams(list(page)))
+
+
+class StreamDetailView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request: Request, stream_id: str) -> Response:
+        return Response(services.get_stream(stream_id=stream_id, viewer_id=_viewer_id(request)))
+
+
+class StreamStatusView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request: Request, stream_id: str) -> Response:
+        return Response(services.get_status(stream_id=stream_id, viewer_id=_viewer_id(request)))
+
+
+# ---------------------------------------------------------------------------
+# Broadcaster — lifecycle
+# ---------------------------------------------------------------------------
+
+
+class MyStreamListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request: Request) -> Response:
+        qs = services.my_streams_queryset(user_id=str(request.user.id))
+        paginator = CursorPagination()
+        page = paginator.paginate_queryset(qs, request, view=self)
+        return paginator.get_paginated_response(
+            [services.serialize_stream(s, broadcaster=True) for s in page]
+        )
+
+    @idempotent
+    def post(self, request: Request) -> Response:
+        serializer = CreateStreamSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = dict(serializer.validated_data)
+        category_id = data.pop("category_id", None)
+        result = services.create_stream(
+            user_id=str(request.user.id),
+            category_id=str(category_id) if category_id else None,
+            **data,
+        )
+        return Response(result, status=status.HTTP_201_CREATED)
+
+
+class MyStreamDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request: Request, stream_id: str) -> Response:
+        return Response(services.get_my_stream(user_id=str(request.user.id), stream_id=stream_id))
+
+    def patch(self, request: Request, stream_id: str) -> Response:
+        serializer = UpdateStreamSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = dict(serializer.validated_data)
+        if "category_id" in data:
+            cid = data.pop("category_id")
+            data["category_id"] = str(cid) if cid else None
+        result = services.update_stream(user_id=str(request.user.id), stream_id=stream_id, **data)
+        return Response(result)
+
+
+class MyStreamPrepareView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @idempotent
+    def post(self, request: Request, stream_id: str) -> Response:
+        return Response(services.prepare_stream(user_id=str(request.user.id), stream_id=stream_id))
+
+
+class MyStreamStartView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @idempotent
+    def post(self, request: Request, stream_id: str) -> Response:
+        return Response(services.start_stream(user_id=str(request.user.id), stream_id=stream_id))
+
+
+class MyStreamEndView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @idempotent
+    def post(self, request: Request, stream_id: str) -> Response:
+        return Response(services.end_stream(user_id=str(request.user.id), stream_id=stream_id))
