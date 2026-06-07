@@ -34,6 +34,7 @@ from libs.jwt_auth.signer import issue_token_pair
 
 from .models import (
     CreatorProfile,
+    EmailVerificationToken,
     Follow,
     KycDocument,
     KycProfile,
@@ -550,6 +551,89 @@ def confirm_password_reset(*, reset_token: str, new_password: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Email verification
+# ---------------------------------------------------------------------------
+
+
+def request_email_verification(*, user_id: str) -> None:
+    """Issue an email-verification token for the user and emit the request event
+    (NotificationService sends the link). No-op if already verified."""
+    try:
+        user = User.objects.get(id=user_id, is_active=True)
+    except User.DoesNotExist:
+        raise NotFoundError(code="USER_NOT_FOUND", message="User not found.")
+    if user.email_verified:
+        return
+
+    raw_token = secrets.token_urlsafe(32)
+    expires_at = _now_utc() + timedelta(hours=24)
+    with transaction.atomic():
+        EmailVerificationToken.objects.create(
+            user=user, token_hash=_hash_token(raw_token), expires_at=expires_at
+        )
+        _emit_outbox(
+            event_type="identity.EmailVerificationRequested",
+            payload={
+                "user_id": str(user.id),
+                "actor_id": str(user.id),
+                "email": user.email,
+                "verification_token": raw_token,  # NotificationService sends the link
+                "occurred_at": _now_utc().isoformat(),
+            },
+            idempotency_key=f"email_verification_requested:{user.id}:{uuid.uuid4().hex}",
+            actor_id=str(user.id),
+        )
+
+
+def confirm_email_verification(*, verification_token: str) -> dict:
+    """Consume a verification token and flag the user's email verified."""
+    token_hash = _hash_token(verification_token)
+    now = _now_utc()
+
+    try:
+        evt = EmailVerificationToken.objects.select_related("user").get(token_hash=token_hash)
+    except EmailVerificationToken.DoesNotExist:
+        raise ValidationError(
+            code="AUTH_VERIFICATION_TOKEN_INVALID", message="Verification token is invalid."
+        )
+    if evt.used_at is not None:
+        raise ValidationError(
+            code="AUTH_VERIFICATION_TOKEN_INVALID",
+            message="Verification token has already been used.",
+        )
+    if evt.expires_at < now:
+        raise ValidationError(
+            code="AUTH_VERIFICATION_TOKEN_EXPIRED", message="Verification token has expired."
+        )
+
+    user = evt.user
+    with transaction.atomic():
+        evt.used_at = now
+        evt.save(update_fields=["used_at"])
+        if not user.email_verified:
+            user.email_verified = True
+            user.email_verified_at = now
+            user.save(update_fields=["email_verified", "email_verified_at", "updated_at"])
+            _emit_outbox(
+                event_type="identity.EmailVerified",
+                payload={
+                    "user_id": str(user.id),
+                    "actor_id": str(user.id),
+                    "occurred_at": now.isoformat(),
+                },
+                idempotency_key=f"email_verified:{user.id}",
+                actor_id=str(user.id),
+            )
+            _record_audit(
+                action="identity.confirm_email_verification",
+                actor_id=str(user.id),
+                target_id=str(user.id),
+                severity="info",
+            )
+    return {"email_verified": True}
+
+
+# ---------------------------------------------------------------------------
 # Profile services
 # ---------------------------------------------------------------------------
 
@@ -592,6 +676,7 @@ def get_profile(*, user_id: str) -> dict:
         "is_creator": user.is_creator,
         "is_seller": user.is_seller,
         "is_admin": user.is_admin,
+        "email_verified": user.email_verified,
         "follower_count": user.follower_count,
         "following_count": user.following_count,
         "creator_profile": _get_creator_profile_data(user),

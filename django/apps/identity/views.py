@@ -21,6 +21,7 @@ from . import services
 from .serializers import (
     ChangePasswordSerializer,
     CreatorProfileUpdateSerializer,
+    EmailVerificationConfirmSerializer,
     KycDocumentUploadSerializer,
     KycUpdateSerializer,
     LoginRequestSerializer,
@@ -185,6 +186,28 @@ class PasswordChangeView(APIView):
             revoke_other_sessions=data.get("revoke_other_sessions", False),
         )
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class EmailVerificationRequestView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @idempotent
+    def post(self, request: Request) -> Response:
+        services.request_email_verification(user_id=str(request.user.id))
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class EmailVerificationConfirmView(APIView):
+    permission_classes = [AllowAny]
+
+    @idempotent
+    def post(self, request: Request) -> Response:
+        serializer = EmailVerificationConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = services.confirm_email_verification(
+            verification_token=serializer.validated_data["verification_token"]
+        )
+        return Response(result)
 
 
 # ---------------------------------------------------------------------------
