@@ -57,6 +57,7 @@ LOCAL_APPS = [
     "apps.content.video.apps.VideoConfig",
     "apps.content.drama.apps.DramaConfig",
     "apps.content.live.apps.LiveConfig",
+    "apps.content.gift.apps.GiftConfig",
     "apps.commerce.apps.CommerceConfig",
     "apps.membership.apps.MembershipConfig",
 ]

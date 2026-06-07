@@ -31,6 +31,6 @@ forbidden_modules =
 name = no cross-app model imports (use services only)
 type = layers
 layers =
-    apps.identity.services : apps.economy.services : apps.payments.services : apps.content.video.services : apps.content.drama.services : apps.content.live.services : apps.commerce.services : apps.membership.services
-    apps.identity.models : apps.economy.models : apps.payments.models : apps.content.video.models : apps.content.drama.models : apps.content.live.models : apps.commerce.models : apps.membership.models
+    apps.identity.services : apps.economy.services : apps.payments.services : apps.content.video.services : apps.content.drama.services : apps.content.live.services : apps.content.gift.services : apps.commerce.services : apps.membership.services
+    apps.identity.models : apps.economy.models : apps.payments.models : apps.content.video.models : apps.content.drama.models : apps.content.live.models : apps.content.gift.models : apps.commerce.models : apps.membership.models
 # NOTE: apps.audit and apps.events are infrastructure — any app may import their services.

@@ -78,6 +78,21 @@ def _get_active_video(video_id: str, *, lock: bool = False) -> Video:
     return video
 
 
+def gift_target(video_id: str) -> str:
+    """Validate an active video and return its owner_user_id (gift receiver).
+    Cross-app boundary for apps.content.gift."""
+    from libs.errors.exceptions import NotFoundError as _NotFound
+
+    owner = (
+        Video.objects.filter(id=video_id, visibility=Video.PUBLIC, is_active=True)
+        .values_list("owner_user_id", flat=True)
+        .first()
+    )
+    if owner is None:
+        raise _NotFound(code="TARGET_NOT_FOUND", message="Gift target not found.")
+    return str(owner)
+
+
 def _can_watch(video: Video) -> bool:
     # Free videos are watchable by anyone; members-only access stays gated until
     # the membership integration lands (erring toward not granting access).

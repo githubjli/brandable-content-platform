@@ -77,6 +77,10 @@ CONTENT_VIDEO_COMMENTED = "content.VideoCommented"
 CONTENT_VIDEO_SHARED = "content.VideoShared"
 CONTENT_VIDEO_VIEWED = "content.VideoViewed"
 
+# Content — gift (V2; cross video/drama)
+CONTENT_VIDEO_GIFTED = "content.VideoGifted"
+CONTENT_DRAMA_GIFTED = "content.DramaGifted"
+
 # Membership (V1 grant + V2 purchase)
 MEMBERSHIP_MEMBERSHIP_GRANTED = "membership.MembershipGranted"
 MEMBERSHIP_ORDER_CREATED = "membership.MembershipOrderCreated"
