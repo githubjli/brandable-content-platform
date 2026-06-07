@@ -79,6 +79,12 @@ CONTENT_VIDEO_VIEWED = "content.VideoViewed"
 
 # Content — drama (V2)
 CONTENT_DRAMA_EPISODE_UNLOCKED = "content.DramaEpisodeUnlocked"
+CONTENT_DRAMA_SERIES_FAVORITED = "content.DramaSeriesFavorited"
+CONTENT_DRAMA_SERIES_UNFAVORITED = "content.DramaSeriesUnfavorited"
+CONTENT_DRAMA_SERIES_COMMENTED = "content.DramaSeriesCommented"
+CONTENT_DRAMA_SERIES_SHARED = "content.DramaSeriesShared"
+CONTENT_DRAMA_SERIES_VIEWED = "content.DramaSeriesViewed"
+CONTENT_DRAMA_PROGRESS_UPDATED = "content.DramaProgressUpdated"
 
 # Platform
 PLATFORM_CONFIG_UPDATED = "platform.ConfigUpdated"

@@ -15,6 +15,7 @@ from django.db.models import (
     CharField,
     DecimalField,
     ForeignKey,
+    GenericIPAddressField,
     Index,
     JSONField,
     PositiveIntegerField,
@@ -133,3 +134,79 @@ class DramaUnlock(AbstractBaseModel):
 
     def __str__(self) -> str:
         return f"DramaUnlock(user={self.user_id}, episode={self.episode_id})"
+
+
+class DramaFavorite(AbstractBaseModel):
+    """A user's favorite of a series — UNIQUE(user, series)."""
+
+    user_id = UUIDField(db_index=True)
+    series = ForeignKey(DramaSeries, on_delete=CASCADE, related_name="favorites")
+
+    class Meta:
+        db_table = "content_drama_favorite"
+        ordering = ["-created_at"]
+        constraints = [
+            UniqueConstraint(fields=["user_id", "series"], name="uq_favorite_user_series"),
+        ]
+
+    def __str__(self) -> str:
+        return f"DramaFavorite(user={self.user_id}, series={self.series_id})"
+
+
+class DramaWatchProgress(AbstractBaseModel):
+    """Latest watch position per (user, series) — drives the `continue` card."""
+
+    user_id = UUIDField(db_index=True)
+    series = ForeignKey(DramaSeries, on_delete=CASCADE, related_name="progress")
+    episode = ForeignKey(DramaEpisode, on_delete=CASCADE, related_name="progress")
+    progress_seconds = PositiveIntegerField(default=0)
+    completed = BooleanField(default=False)
+
+    class Meta:
+        db_table = "content_drama_watch_progress"
+        ordering = ["-updated_at"]
+        constraints = [
+            UniqueConstraint(fields=["user_id", "series"], name="uq_progress_user_series"),
+        ]
+
+    def __str__(self) -> str:
+        return f"DramaWatchProgress(user={self.user_id}, series={self.series_id})"
+
+
+class DramaSeriesView(AbstractBaseModel):
+    """A series view event. Deduped per user/IP per minute via dedup_key UNIQUE."""
+
+    series = ForeignKey(DramaSeries, on_delete=CASCADE, related_name="views")
+    user_id = UUIDField(null=True, blank=True, db_index=True)
+    ip_address = GenericIPAddressField(null=True, blank=True)
+    dedup_key = CharField(max_length=200)
+
+    class Meta:
+        db_table = "content_drama_series_view"
+        ordering = ["-created_at"]
+        constraints = [
+            UniqueConstraint(fields=["dedup_key"], name="uq_drama_view_dedup"),
+        ]
+
+    def __str__(self) -> str:
+        return f"DramaSeriesView(series={self.series_id})"
+
+
+class DramaComment(AbstractBaseModel):
+    """Threaded one level deep: top-level comments + replies (parent set)."""
+
+    series = ForeignKey(DramaSeries, on_delete=CASCADE, related_name="comments")
+    user_id = UUIDField(db_index=True)
+    parent = ForeignKey("self", on_delete=CASCADE, null=True, blank=True, related_name="replies")
+    content = TextField()
+    reply_count = PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "content_drama_comment"
+        ordering = ["-created_at"]
+        indexes = [
+            Index(fields=["series", "parent", "created_at"], name="idx_dcomment_series_parent"),
+        ]
+
+    def __str__(self) -> str:
+        return f"DramaComment(series={self.series_id})"

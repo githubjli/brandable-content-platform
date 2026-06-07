@@ -13,10 +13,21 @@ from decimal import Decimal
 from typing import Any
 
 from django.db import transaction
+from django.db.models import F, Value
+from django.db.models.functions import Greatest
 
 from libs.errors.exceptions import NotFoundError, UnprocessableError, ValidationError
 
-from .models import DramaCategory, DramaEpisode, DramaSeries, DramaUnlock
+from .models import (
+    DramaCategory,
+    DramaComment,
+    DramaEpisode,
+    DramaFavorite,
+    DramaSeries,
+    DramaSeriesView,
+    DramaUnlock,
+    DramaWatchProgress,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +115,7 @@ def serialize_series(
     owner: dict | None = None,
     is_following: bool = False,
     is_favorited: bool = False,
+    continue_card: dict | None = None,
 ) -> dict[str, Any]:
     locked = max(series.total_episodes - series.free_episodes, 0)
     return {
@@ -134,9 +146,33 @@ def serialize_series(
         "viewer_context": {
             "is_favorited": is_favorited,
             "is_following_owner": is_following,
-            "continue": None,
+            "continue": continue_card,
         },
         "created_at": _iso(series.created_at),
+    }
+
+
+def _favorited_series_ids(user_id: str | None, series_ids: list) -> set[str]:
+    if not user_id or not series_ids:
+        return set()
+    rows = DramaFavorite.objects.filter(user_id=user_id, series_id__in=series_ids).values_list(
+        "series_id", flat=True
+    )
+    return {str(s) for s in rows}
+
+
+def _continue_cards(user_id: str | None, series_ids: list) -> dict[str, dict]:
+    if not user_id or not series_ids:
+        return {}
+    rows = DramaWatchProgress.objects.filter(
+        user_id=user_id, series_id__in=series_ids
+    ).select_related("episode")
+    return {
+        str(p.series_id): {
+            "episode_no": p.episode.episode_no,
+            "progress_seconds": p.progress_seconds,
+        }
+        for p in rows
     }
 
 
@@ -151,13 +187,18 @@ def serialize_series_list(series_list: list[DramaSeries], viewer_id: str | None 
     from apps.identity.services import following_ids, public_profiles
 
     owner_ids = [str(s.owner_user_id) for s in series_list]
+    series_ids = [s.id for s in series_list]
     owners = public_profiles(owner_ids)
     following = following_ids(viewer_id, owner_ids)
+    favorited = _favorited_series_ids(viewer_id, series_ids)
+    continues = _continue_cards(viewer_id, series_ids)
     return [
         serialize_series(
             s,
             owner=owners.get(str(s.owner_user_id)),
             is_following=str(s.owner_user_id) in following,
+            is_favorited=str(s.id) in favorited,
+            continue_card=continues.get(str(s.id)),
         )
         for s in series_list
     ]
@@ -178,8 +219,14 @@ def get_series(*, series_id: str, viewer_id: str | None = None) -> dict[str, Any
     series = _get_active_series(series_id)
     owner = public_profiles([str(series.owner_user_id)]).get(str(series.owner_user_id))
     following = following_ids(viewer_id, [str(series.owner_user_id)])
+    favorited = _favorited_series_ids(viewer_id, [series.id])
+    continues = _continue_cards(viewer_id, [series.id])
     return serialize_series(
-        series, owner=owner, is_following=str(series.owner_user_id) in following
+        series,
+        owner=owner,
+        is_following=str(series.owner_user_id) in following,
+        is_favorited=str(series.id) in favorited,
+        continue_card=continues.get(str(series.id)),
     )
 
 
@@ -378,3 +425,255 @@ def unlock_episode(*, user_id: str, episode_id: str, payment_method: str) -> dic
             actor_id=str(user_id),
         )
         return _unlock_result(episode, payment_method, ledger["id"], code=None)
+
+
+# ---------------------------------------------------------------------------
+# Favorites — content-drama.md §5
+# ---------------------------------------------------------------------------
+
+
+def add_favorite(*, user_id: str, series_id: str) -> dict[str, Any]:
+    series = _get_active_series(series_id)
+    _, created = DramaFavorite.objects.get_or_create(user_id=user_id, series=series)
+    if created:
+        DramaSeries.objects.filter(id=series.id).update(favorite_count=F("favorite_count") + 1)
+        series.refresh_from_db(fields=["favorite_count"])
+        _emit(
+            event_type="content.DramaSeriesFavorited",
+            payload={
+                "series_id": str(series.id),
+                "user_id": str(user_id),
+                "occurred_at": _iso(_now()),
+            },
+            idempotency_key=f"content_drama_favorited:{series.id}:{user_id}",
+            actor_id=str(user_id),
+        )
+    return {
+        "series_id": str(series.id),
+        "is_favorited": True,
+        "favorite_count": series.favorite_count,
+    }
+
+
+def remove_favorite(*, user_id: str, series_id: str) -> dict[str, Any]:
+    series = _get_active_series(series_id)
+    deleted, _ = DramaFavorite.objects.filter(user_id=user_id, series=series).delete()
+    if deleted:
+        DramaSeries.objects.filter(id=series.id).update(
+            favorite_count=Greatest(F("favorite_count") - 1, Value(0))
+        )
+        series.refresh_from_db(fields=["favorite_count"])
+        _emit(
+            event_type="content.DramaSeriesUnfavorited",
+            payload={
+                "series_id": str(series.id),
+                "user_id": str(user_id),
+                "occurred_at": _iso(_now()),
+            },
+            idempotency_key=f"content_drama_unfavorited:{series.id}:{user_id}:{_now().timestamp()}",
+            actor_id=str(user_id),
+        )
+    return {
+        "series_id": str(series.id),
+        "is_favorited": False,
+        "favorite_count": series.favorite_count,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Watch progress — content-drama.md §4
+# ---------------------------------------------------------------------------
+
+
+def _serialize_progress(progress: DramaWatchProgress) -> dict[str, Any]:
+    return {
+        "series_id": str(progress.series_id),
+        "episode_id": str(progress.episode_id),
+        "episode_no": progress.episode.episode_no,
+        "progress_seconds": progress.progress_seconds,
+        "completed": progress.completed,
+        "updated_at": _iso(progress.updated_at),
+    }
+
+
+def get_progress(*, user_id: str, series_id: str) -> dict[str, Any]:
+    progress = (
+        DramaWatchProgress.objects.select_related("episode")
+        .filter(user_id=user_id, series_id=series_id)  # type: ignore[misc]
+        .first()
+    )
+    if progress is None:
+        raise NotFoundError(code="PROGRESS_NOT_FOUND", message="No watch progress recorded.")
+    return _serialize_progress(progress)
+
+
+def upsert_progress(
+    *, user_id: str, series_id: str, episode_id: str, progress_seconds: int, completed: bool = False
+) -> dict[str, Any]:
+    with transaction.atomic():
+        series = _get_active_series(series_id)
+        episode = series.episodes.filter(id=episode_id, is_active=True).first()
+        if episode is None:
+            raise NotFoundError(code="EPISODE_NOT_FOUND", message="Episode not found in series.")
+        progress, _ = DramaWatchProgress.objects.update_or_create(
+            user_id=user_id,
+            series=series,
+            defaults={
+                "episode": episode,
+                "progress_seconds": max(int(progress_seconds), 0),
+                "completed": completed,
+            },
+        )
+        progress.episode = episode  # ensure select_related-free serialize is correct
+        _emit(
+            event_type="content.DramaProgressUpdated",
+            payload={
+                "series_id": str(series.id),
+                "episode_id": str(episode.id),
+                "user_id": str(user_id),
+                "progress_seconds": progress.progress_seconds,
+                "occurred_at": _iso(_now()),
+            },
+            idempotency_key=f"content_drama_progress:{series.id}:{user_id}:{_now().timestamp()}",
+            actor_id=str(user_id),
+        )
+    return _serialize_progress(progress)
+
+
+def upsert_episode_progress(
+    *, user_id: str, episode_id: str, progress_seconds: int, completed: bool = False
+) -> dict[str, Any]:
+    """Episode-scoped progress: the series is derived from the episode."""
+    episode = (
+        DramaEpisode.objects.select_related("series")
+        .filter(id=episode_id, is_active=True, series__is_active=True)
+        .first()
+    )
+    if episode is None:
+        raise NotFoundError(code="EPISODE_NOT_FOUND", message="Episode not found.")
+    return upsert_progress(
+        user_id=user_id,
+        series_id=str(episode.series_id),
+        episode_id=str(episode.id),
+        progress_seconds=progress_seconds,
+        completed=completed,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Comments — content-drama.md §6
+# ---------------------------------------------------------------------------
+
+_COMMENT_MAX = 2000
+
+
+def comments_queryset(*, series_id: str):
+    series = _get_active_series(series_id)
+    return DramaComment.objects.filter(series=series, parent__isnull=True)
+
+
+def replies_queryset(*, series_id: str, parent_id: str):
+    series = _get_active_series(series_id)
+    return DramaComment.objects.filter(series=series, parent_id=parent_id)  # type: ignore[misc]
+
+
+def serialize_comments(comments: list[DramaComment]) -> list[dict[str, Any]]:
+    from apps.identity.services import public_profiles
+
+    users = public_profiles([str(c.user_id) for c in comments])
+    return [
+        {
+            "id": str(c.id),
+            "content": c.content,
+            "user": users.get(str(c.user_id))
+            or {"id": str(c.user_id), "display_name": None, "avatar_url": None},
+            "parent_id": str(c.parent_id) if c.parent_id else None,
+            "reply_count": c.reply_count,
+            "created_at": _iso(c.created_at),
+        }
+        for c in comments
+    ]
+
+
+def add_comment(
+    *, user_id: str, series_id: str, content: str, parent_id: str | None = None
+) -> dict[str, Any]:
+    text = (content or "").strip()
+    if not text:
+        raise ValidationError(code="COMMENT_EMPTY", message="Comment content is required.")
+    if len(text) > _COMMENT_MAX:
+        raise UnprocessableError(
+            code="COMMENT_TOO_LONG", message=f"Comment exceeds {_COMMENT_MAX} characters."
+        )
+    with transaction.atomic():
+        series = _get_active_series(series_id)
+        parent = None
+        if parent_id:
+            parent = DramaComment.objects.filter(id=parent_id, series=series).first()
+            if parent is None:
+                raise UnprocessableError(
+                    code="COMMENT_PARENT_INVALID",
+                    message="parent_id does not belong to this series.",
+                )
+        comment = DramaComment.objects.create(
+            series=series, user_id=user_id, content=text, parent=parent
+        )
+        DramaSeries.objects.filter(id=series.id).update(comment_count=F("comment_count") + 1)
+        if parent is not None:
+            DramaComment.objects.filter(id=parent.id).update(reply_count=F("reply_count") + 1)
+        _emit(
+            event_type="content.DramaSeriesCommented",
+            payload={
+                "series_id": str(series.id),
+                "comment_id": str(comment.id),
+                "user_id": str(user_id),
+                "occurred_at": _iso(_now()),
+            },
+            idempotency_key=f"content_drama_commented:{comment.id}",
+            actor_id=str(user_id),
+        )
+    return serialize_comments([comment])[0]
+
+
+# ---------------------------------------------------------------------------
+# View + share tracking — content-drama.md §1
+# ---------------------------------------------------------------------------
+
+
+def track_view(
+    *, series_id: str, user_id: str | None = None, ip_address: str | None = None
+) -> dict[str, Any]:
+    series = _get_active_series(series_id)
+    who = user_id or ip_address or "anon"
+    dedup_key = f"{series.id}:{who}:{_now():%Y%m%d%H%M}"
+    _, created = DramaSeriesView.objects.get_or_create(
+        dedup_key=dedup_key,
+        defaults={"series": series, "user_id": user_id, "ip_address": ip_address},
+    )
+    if created:
+        DramaSeries.objects.filter(id=series.id).update(view_count=F("view_count") + 1)
+        series.refresh_from_db(fields=["view_count"])
+        _emit(
+            event_type="content.DramaSeriesViewed",
+            payload={"series_id": str(series.id), "occurred_at": _iso(_now())},
+            idempotency_key=f"content_drama_viewed:{dedup_key}",
+            actor_id=str(user_id) if user_id else None,
+        )
+    return {"series_id": str(series.id), "view_count": series.view_count}
+
+
+def track_share(*, series_id: str, user_id: str | None = None, channel: str = "") -> dict[str, Any]:
+    series = _get_active_series(series_id)
+    DramaSeries.objects.filter(id=series.id).update(share_count=F("share_count") + 1)
+    series.refresh_from_db(fields=["share_count"])
+    _emit(
+        event_type="content.DramaSeriesShared",
+        payload={
+            "series_id": str(series.id),
+            "channel": channel or None,
+            "occurred_at": _iso(_now()),
+        },
+        idempotency_key=f"content_drama_shared:{series.id}:{_now().timestamp()}",
+        actor_id=str(user_id) if user_id else None,
+    )
+    return {"series_id": str(series.id), "share_count": series.share_count}
