@@ -77,6 +77,9 @@ CONTENT_VIDEO_COMMENTED = "content.VideoCommented"
 CONTENT_VIDEO_SHARED = "content.VideoShared"
 CONTENT_VIDEO_VIEWED = "content.VideoViewed"
 
+# Content — drama (V2)
+CONTENT_DRAMA_EPISODE_UNLOCKED = "content.DramaEpisodeUnlocked"
+
 # Platform
 PLATFORM_CONFIG_UPDATED = "platform.ConfigUpdated"
 PLATFORM_FEATURE_TOGGLED = "platform.FeatureToggled"
