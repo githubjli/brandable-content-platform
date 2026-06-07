@@ -482,3 +482,52 @@ def pin_message(
             actor_id=str(user_id),
         )
     return serialize_messages([msg])[0]
+
+
+# ---------------------------------------------------------------------------
+# Live gift (content-live.md §4; reuses apps.content.gift)
+# ---------------------------------------------------------------------------
+
+
+def gift_target(stream_id: str) -> str:
+    """Validate a live stream and return its owner (the gift receiver). Cross-app
+    boundary for apps.content.gift; live gifts require the stream to be live."""
+    stream = LiveStream.objects.filter(id=stream_id).first()
+    if stream is None:
+        raise NotFoundError(code="TARGET_NOT_FOUND", message="Live stream not found.")
+    if stream.status != LiveStream.LIVE:
+        raise UnprocessableError(code="LIVE_STREAM_NOT_LIVE", message="The stream is not live.")
+    return str(stream.owner_user_id)
+
+
+def send_live_gift(
+    *,
+    sender_id: str,
+    stream_id: str,
+    amount: Any,
+    currency: str,
+    payment_method: str,
+    idempotency_key: str,
+    gift_code: str = "",
+) -> dict[str, Any]:
+    """Send a gift to a live stream. Unlike video/drama gifts, this one broadcasts:
+    gift.send_gift emits content.live.GiftSent (the runtime relays it to viewers),
+    and the response carries the broadcast event block."""
+    from apps.content.gift.services import send_gift
+
+    result = send_gift(
+        sender_id=str(sender_id),
+        target_type="live_stream",  # GiftTransaction.LIVE_STREAM
+        target_id=str(stream_id),
+        amount=amount,
+        currency=currency,
+        payment_method=payment_method,
+        idempotency_key=idempotency_key,
+        gift_code=gift_code,
+    )
+    result["event"] = {
+        "id": result["transaction"]["id"],
+        "type": "gift_event",
+        "broadcast_status": "queued",
+    }
+    return result
