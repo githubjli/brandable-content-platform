@@ -26,6 +26,8 @@ _PAYMENT_CURRENCY = {"meow_points": "MP", "meow_credit": "MC"}
 _TARGET_EVENT = {
     GiftTransaction.VIDEO: "content.VideoGifted",
     GiftTransaction.DRAMA_SERIES: "content.DramaGifted",
+    # Live gifts emit the live broadcast event so the runtime relays them to viewers.
+    GiftTransaction.LIVE_STREAM: "content.live.GiftSent",
 }
 
 
@@ -67,6 +69,10 @@ def _resolve_receiver(target_type: str, target_id: str) -> str:
         from apps.content.drama.services import gift_target as drama_gift_target
 
         return drama_gift_target(target_id)
+    if target_type == GiftTransaction.LIVE_STREAM:
+        from apps.content.live.services import gift_target as live_gift_target
+
+        return live_gift_target(target_id)
     raise ValidationError(code="GIFT_TARGET_TYPE_INVALID", message="Unsupported gift target.")
 
 

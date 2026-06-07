@@ -59,4 +59,10 @@ urlpatterns = [
         views.ChatMessagePinView.as_view(),
         name="live-chat-message-pin",
     ),
+    # Live gift — §4
+    path(
+        "content/live/streams/<uuid:stream_id>/gifts/send",
+        views.LiveGiftSendView.as_view(),
+        name="live-gift-send",
+    ),
 ]

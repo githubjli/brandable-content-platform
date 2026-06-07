@@ -99,6 +99,9 @@ CONTENT_LIVE_CHAT_MESSAGE_POSTED = "content.live.ChatMessagePosted"
 CONTENT_LIVE_CHAT_MESSAGE_DELETED = "content.live.ChatMessageDeleted"
 CONTENT_LIVE_CHAT_MESSAGE_PINNED = "content.live.ChatMessagePinned"
 
+# Content — live (V3 gift broadcast; emitted by apps.content.gift for live targets)
+CONTENT_LIVE_GIFT_SENT = "content.live.GiftSent"
+
 # Membership (V1 grant + V2 purchase)
 MEMBERSHIP_MEMBERSHIP_GRANTED = "membership.MembershipGranted"
 MEMBERSHIP_ORDER_CREATED = "membership.MembershipOrderCreated"
