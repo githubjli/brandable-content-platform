@@ -76,3 +76,39 @@ class UserMembership(AbstractBaseModel):
 
     def __str__(self) -> str:
         return f"UserMembership(user={self.user_id}, {self.status})"
+
+
+class MembershipOrder(AbstractBaseModel):
+    """A one-shot membership purchase (membership.md V2). Pays via apps/payments;
+    on settlement the PAYMENTS_ORDER_PAID handler grants the membership."""
+
+    PENDING_PAYMENT = "pending_payment"
+    PAID = "paid"
+    CANCELLED = "cancelled"
+    STATUS = [
+        (PENDING_PAYMENT, PENDING_PAYMENT),
+        (PAID, PAID),
+        (CANCELLED, CANCELLED),
+    ]
+
+    order_no = CharField(max_length=64, unique=True)
+    user_id = UUIDField(db_index=True)
+    plan = ForeignKey(MembershipPlan, on_delete=PROTECT, related_name="orders")
+    status = CharField(max_length=20, choices=STATUS, default=PENDING_PAYMENT)
+    amount = DecimalField(max_digits=18, decimal_places=4)
+    currency = CharField(max_length=20)
+    payment_provider = CharField(max_length=20)
+    payment_asset = CharField(max_length=20)
+    payment_order_no = CharField(max_length=64, blank=True)
+    paid_at = DateTimeField(null=True, blank=True)
+    idempotency_key = CharField(max_length=128, unique=True)
+
+    class Meta:
+        db_table = "membership_order"
+        ordering = ["-created_at"]
+        indexes = [
+            Index(fields=["user_id", "status"], name="idx_morder_user_status"),
+        ]
+
+    def __str__(self) -> str:
+        return f"MembershipOrder({self.order_no}, {self.status})"
