@@ -35,19 +35,25 @@ def create_stream(*, stream_id: str, owner_id: str) -> dict[str, Any]:
             "websocket_url": "wss://live-runtime.local/LiveApp/websocket",
             "webrtc_publish_config": {"mode": "webrtc", "stream_id": sid},
         }
-    raise NotImplementedError("Live Runtime gRPC client not yet wired.")  # pragma: no cover
+    from libs.grpc_client import live_create_stream
+
+    return live_create_stream(stream_id=str(stream_id), owner_id=str(owner_id))
 
 
 def start_broadcast(*, stream_id: str) -> dict[str, Any]:
     if not _enabled():
         return {"ok": True}
-    raise NotImplementedError("Live Runtime gRPC client not yet wired.")  # pragma: no cover
+    from libs.grpc_client import live_start_broadcast
+
+    return live_start_broadcast(stream_id=str(stream_id))
 
 
 def stop_broadcast(*, stream_id: str) -> dict[str, Any]:
     if not _enabled():
         return {"ok": True}
-    raise NotImplementedError("Live Runtime gRPC client not yet wired.")  # pragma: no cover
+    from libs.grpc_client import live_stop_broadcast
+
+    return live_stop_broadcast(stream_id=str(stream_id))
 
 
 def get_watch_config(*, stream_id: str, ant_media_stream_id: str, is_live: bool) -> dict[str, Any]:
@@ -65,4 +71,6 @@ def get_watch_config(*, stream_id: str, ant_media_stream_id: str, is_live: bool)
             },
             "fallback": {"mode": "hls", "hls_url": hls},
         }
-    raise NotImplementedError("Live Runtime gRPC client not yet wired.")  # pragma: no cover
+    from libs.grpc_client import live_get_watch_config
+
+    return live_get_watch_config(stream_id=str(stream_id))

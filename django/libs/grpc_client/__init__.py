@@ -28,6 +28,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Generator
 from contextlib import contextmanager
+from typing import Any
 
 import grpc
 from django.conf import settings
@@ -189,3 +190,126 @@ def send_notification(
         return {"status": response.status, "message_id": response.message_id}
     finally:
         grpc_channel.close()
+
+
+# ---------------------------------------------------------------------------
+# Live Runtime service client (live-runtime.md). Wraps LiveRuntimeService RPCs
+# and maps proto responses to the dict shapes apps/content/live/runtime.py uses.
+# ---------------------------------------------------------------------------
+
+
+def _live_runtime_modules() -> tuple:
+    """Import the generated live_runtime pb2 + grpc modules (generated/ on path)."""
+    import os
+    import sys
+
+    generated = os.path.join(os.path.dirname(__file__), "generated")
+    if generated not in sys.path:
+        sys.path.insert(0, generated)
+    from live.v1 import live_runtime_pb2, live_runtime_pb2_grpc
+
+    return live_runtime_pb2, live_runtime_pb2_grpc
+
+
+def _live_stub_call(method: str, request: object, timeout: float | None = None) -> Any:
+    """Open a channel to the Live Runtime service, invoke `method`, close. Returns
+    the proto response. Raises grpc.RpcError if the service is unreachable."""
+    _, live_runtime_pb2_grpc = _live_runtime_modules()
+    grpc_channel = grpc.insecure_channel(settings.GRPC_LIVE_RUNTIME_ADDRESS)
+    try:
+        stub = live_runtime_pb2_grpc.LiveRuntimeServiceStub(grpc_channel)
+        return getattr(stub, method)(
+            request,
+            metadata=get_metadata(),
+            timeout=timeout or settings.GRPC_TIMEOUT_SECONDS,
+        )
+    finally:
+        grpc_channel.close()
+
+
+def _playback_dict(playback: Any) -> dict[str, Any]:
+    return {
+        "mode": playback.mode,
+        "stream_id": playback.stream_id,
+        "websocket_url": playback.websocket_url,
+        "hls_url": playback.hls_url,
+        "connected": playback.connected,
+    }
+
+
+def live_create_stream(
+    *,
+    stream_id: str,
+    owner_id: str,
+    title: str = "",
+    visibility: str = "public",
+    idempotency_key: str = "",
+    timeout: float | None = None,
+) -> dict[str, Any]:
+    """Call LiveRuntimeService.CreateStream → publisher credentials dict."""
+    live_runtime_pb2, _ = _live_runtime_modules()
+    request = live_runtime_pb2.CreateStreamRequest(
+        idempotency_key=idempotency_key or f"live_create:{stream_id}",
+        stream_id=stream_id,
+        owner_user_id=owner_id,
+        title=title,
+        visibility=visibility,
+    )
+    resp = _live_stub_call("CreateStream", request, timeout)
+    return {
+        "ant_media_stream_id": "",  # runtime owns it; not echoed by StreamConfig
+        "stream_key": resp.stream_key,
+        "rtmp_url": resp.rtmp_url,
+        "hls_url": "",  # issued by the runtime at watch time
+        "websocket_url": resp.webrtc.websocket_url,
+        "webrtc_publish_config": {
+            "mode": "webrtc",
+            "websocket_url": resp.webrtc.websocket_url,
+            "ice_servers_json": resp.webrtc.ice_servers_json,
+        },
+    }
+
+
+def live_start_broadcast(
+    *, stream_id: str, idempotency_key: str = "", timeout: float | None = None
+) -> dict[str, Any]:
+    live_runtime_pb2, _ = _live_runtime_modules()
+    request = live_runtime_pb2.StartBroadcastRequest(
+        idempotency_key=idempotency_key or f"live_start:{stream_id}", stream_id=stream_id
+    )
+    resp = _live_stub_call("StartBroadcast", request, timeout)
+    return {
+        "ok": True,
+        "status": resp.status,
+        "already_started": resp.already_started,
+        "ant_media_session_id": resp.ant_media_session_id,
+    }
+
+
+def live_stop_broadcast(
+    *, stream_id: str, idempotency_key: str = "", timeout: float | None = None
+) -> dict[str, Any]:
+    live_runtime_pb2, _ = _live_runtime_modules()
+    request = live_runtime_pb2.StopBroadcastRequest(
+        idempotency_key=idempotency_key or f"live_stop:{stream_id}", stream_id=stream_id
+    )
+    resp = _live_stub_call("StopBroadcast", request, timeout)
+    return {"ok": True, "status": resp.status}
+
+
+def live_get_watch_config(
+    *,
+    stream_id: str,
+    viewer_user_id: str = "",
+    viewer_ip: str = "",
+    timeout: float | None = None,
+) -> dict[str, Any]:
+    live_runtime_pb2, _ = _live_runtime_modules()
+    request = live_runtime_pb2.GetWatchConfigRequest(
+        stream_id=stream_id, viewer_user_id=viewer_user_id, viewer_ip=viewer_ip
+    )
+    resp = _live_stub_call("GetWatchConfig", request, timeout)
+    return {
+        "playback": _playback_dict(resp.playback),
+        "fallback": _playback_dict(resp.fallback),
+    }
