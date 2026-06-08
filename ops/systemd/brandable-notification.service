@@ -1,0 +1,22 @@
+[Unit]
+Description=Brandable Content Platform — Notification gRPC service
+After=network.target
+# No DB dependency: the notification service stores its own state and never
+# reads Django's database (ADR-0006).
+
+[Service]
+Type=simple
+User=brandable
+Group=brandable
+WorkingDirectory=/opt/brandable-content-platform/services/notification
+ExecStart=/opt/brandable-venv/bin/python main.py
+Environment=GRPC_PORT=50051
+Restart=on-failure
+RestartSec=5
+EnvironmentFile=/etc/brandable/env
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=brandable-notification
+
+[Install]
+WantedBy=multi-user.target
