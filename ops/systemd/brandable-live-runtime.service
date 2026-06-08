@@ -1,0 +1,25 @@
+[Unit]
+Description=Brandable Content Platform — Live Runtime gRPC service
+After=network.target
+# Optional: only enable once you run the realtime plane (set LIVE_RUNTIME_ENABLED
+# =true in Django's env so it calls this service). Until then Django stays in
+# fake mode and the live lifecycle works without this unit.
+
+[Service]
+Type=simple
+User=brandable
+Group=brandable
+WorkingDirectory=/opt/brandable-content-platform/services/live
+ExecStart=/opt/brandable-venv/bin/python main.py
+Environment=GRPC_PORT=50053
+# Set ANT_MEDIA_ENABLED=true + ANT_MEDIA_BASE_URL in the env file to talk to a
+# real Ant Media server; otherwise the service runs its fake-mode adapter.
+Restart=on-failure
+RestartSec=5
+EnvironmentFile=/etc/brandable/env
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=brandable-live-runtime
+
+[Install]
+WantedBy=multi-user.target

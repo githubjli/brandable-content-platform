@@ -1,0 +1,22 @@
+[Unit]
+Description=Brandable Content Platform — Outbox dispatcher
+After=network.target postgresql.service redis.service
+Requires=postgresql.service redis.service
+
+[Service]
+Type=simple
+User=brandable
+Group=brandable
+WorkingDirectory=/opt/brandable-content-platform/django
+# Single-leader via a PG advisory lock — safe to run one unit per host; a second
+# instance would stand by. Loops until killed; systemd restarts it on failure.
+ExecStart=/opt/brandable-venv/bin/python manage.py run_dispatcher
+Restart=on-failure
+RestartSec=5
+EnvironmentFile=/etc/brandable/env
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=brandable-dispatcher
+
+[Install]
+WantedBy=multi-user.target
