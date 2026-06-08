@@ -17,6 +17,7 @@ Each ADR captures one significant decision: context, alternatives, decision, con
 | 0009 | Migration strategy: parallel read-only + scheduled cutover | Accepted |
 | 0010 | Observability backend: Grafana stack (self-hosted) | Accepted |
 | 0011 | Architecture-first boundary adjustment | Accepted |
+| 0012 | On-prem deployment without cloud or containers | Accepted |
 
 ## Lifecycle
 
