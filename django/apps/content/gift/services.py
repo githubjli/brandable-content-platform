@@ -23,6 +23,12 @@ logger = logging.getLogger(__name__)
 
 _CENT = Decimal("0.0001")
 _PAYMENT_CURRENCY = {"meow_points": "MP", "meow_credit": "MC"}
+
+# Re-exported so sibling content apps can request gift totals without importing
+# the gift model (import-linter forbids cross-app model imports).
+TARGET_VIDEO = GiftTransaction.VIDEO
+TARGET_DRAMA_SERIES = GiftTransaction.DRAMA_SERIES
+TARGET_LIVE_STREAM = GiftTransaction.LIVE_STREAM
 _TARGET_EVENT = {
     GiftTransaction.VIDEO: "content.VideoGifted",
     GiftTransaction.DRAMA_SERIES: "content.DramaGifted",
@@ -57,6 +63,31 @@ def _iso(dt: datetime | None) -> str | None:
 
 def _money(value: Any) -> Decimal:
     return Decimal(str(value)).quantize(_CENT)
+
+
+def gift_totals(*, target_type: str, target_ids: list[str], currency: str = "MP") -> dict[str, str]:
+    """Total received gift amount per target in `currency` (default MP, the primary
+    social-gift currency), formatted "0.0000". Batched for content-list serialization
+    via the (target_type, target_id) index; targets with no gifts in this currency
+    are omitted so the caller can default them to zero.
+
+    Note: a single-currency view by design — the content card shows one
+    gift_amount/gift_currency pair. MC gifts are aggregated separately if requested.
+    """
+    if not target_ids:
+        return {}
+    from django.db.models import Sum
+
+    rows = (
+        GiftTransaction.objects.filter(
+            target_type=target_type,
+            target_id__in=target_ids,
+            currency=currency,
+        )
+        .values("target_id")
+        .annotate(total=Sum("amount"))
+    )
+    return {str(r["target_id"]): str(_money(r["total"])) for r in rows}
 
 
 def _resolve_receiver(target_type: str, target_id: str) -> str:
