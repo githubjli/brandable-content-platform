@@ -14,6 +14,7 @@ from typing import Any
 from django.db import transaction
 from django.db.models import F
 
+from apps.events import types
 from libs.errors.exceptions import (
     ConflictError,
     ForbiddenError,
@@ -270,7 +271,7 @@ def create_stream(
             ]
         )
         _emit(
-            event_type="content.live.StreamCreated",
+            event_type=types.CONTENT_LIVE_STREAM_CREATED,
             payload={
                 "stream_id": str(stream.id),
                 "owner_user_id": str(user_id),
@@ -318,7 +319,7 @@ def start_stream(*, user_id: str, stream_id: str) -> dict[str, Any]:
             stream.started_at = _now()
             stream.save(update_fields=["status", "started_at", "updated_at"])
             _emit(
-                event_type="content.live.StreamStarted",
+                event_type=types.CONTENT_LIVE_STREAM_STARTED,
                 payload={
                     "stream_id": str(stream.id),
                     "owner_user_id": str(user_id),
@@ -350,7 +351,7 @@ def end_stream(*, user_id: str, stream_id: str) -> dict[str, Any]:
         stream.ended_at = _now()
         stream.save(update_fields=["status", "ended_at", "updated_at"])
         _emit(
-            event_type="content.live.StreamEnded",
+            event_type=types.CONTENT_LIVE_STREAM_ENDED,
             payload={
                 "stream_id": str(stream.id),
                 "owner_user_id": str(user_id),
@@ -457,7 +458,7 @@ def post_message(
             product_id=product_id,
         )
         _emit(
-            event_type="content.live.ChatMessagePosted",
+            event_type=types.CONTENT_LIVE_CHAT_MESSAGE_POSTED,
             payload={
                 "stream_id": str(stream.id),
                 "message_id": str(msg.id),
@@ -492,7 +493,7 @@ def delete_message(*, user_id: str, stream_id: str, message_id: str) -> None:
         msg.is_active = False
         msg.save(update_fields=["is_active", "updated_at"])
         _emit(
-            event_type="content.live.ChatMessageDeleted",
+            event_type=types.CONTENT_LIVE_CHAT_MESSAGE_DELETED,
             payload={
                 "stream_id": str(stream.id),
                 "message_id": str(msg.id),
@@ -517,7 +518,7 @@ def pin_message(
         msg.is_pinned = pinned
         msg.save(update_fields=["is_pinned", "updated_at"])
         _emit(
-            event_type="content.live.ChatMessagePinned",
+            event_type=types.CONTENT_LIVE_CHAT_MESSAGE_PINNED,
             payload={
                 "stream_id": str(stream.id),
                 "message_id": str(msg.id),

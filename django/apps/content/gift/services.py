@@ -15,6 +15,7 @@ from typing import Any
 
 from django.db import transaction
 
+from apps.events import types
 from libs.errors.exceptions import UnprocessableError, ValidationError
 
 from .models import GiftCatalogItem, GiftTransaction
@@ -24,10 +25,10 @@ logger = logging.getLogger(__name__)
 _CENT = Decimal("0.0001")
 _PAYMENT_CURRENCY = {"meow_points": "MP", "meow_credit": "MC"}
 _TARGET_EVENT = {
-    GiftTransaction.VIDEO: "content.VideoGifted",
-    GiftTransaction.DRAMA_SERIES: "content.DramaGifted",
+    GiftTransaction.VIDEO: types.CONTENT_VIDEO_GIFTED,
+    GiftTransaction.DRAMA_SERIES: types.CONTENT_DRAMA_GIFTED,
     # Live gifts emit the live broadcast event so the runtime relays them to viewers.
-    GiftTransaction.LIVE_STREAM: "content.live.GiftSent",
+    GiftTransaction.LIVE_STREAM: types.CONTENT_LIVE_GIFT_SENT,
 }
 
 

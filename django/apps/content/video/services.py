@@ -15,6 +15,7 @@ from django.db import transaction
 from django.db.models import F, Q, Value
 from django.db.models.functions import Greatest
 
+from apps.events import types
 from libs.errors.exceptions import (
     ForbiddenError,
     NotFoundError,
@@ -250,7 +251,7 @@ def like_video(*, user_id: str, video_id: str) -> dict[str, Any]:
         Video.objects.filter(id=video.id).update(like_count=F("like_count") + 1)
         video.refresh_from_db(fields=["like_count"])
         _emit(
-            event_type="content.VideoLiked",
+            event_type=types.CONTENT_VIDEO_LIKED,
             payload={
                 "video_id": str(video.id),
                 "user_id": str(user_id),
@@ -269,7 +270,7 @@ def unlike_video(*, user_id: str, video_id: str) -> dict[str, Any]:
         Video.objects.filter(id=video.id).update(like_count=Greatest(F("like_count") - 1, Value(0)))
         video.refresh_from_db(fields=["like_count"])
         _emit(
-            event_type="content.VideoUnliked",
+            event_type=types.CONTENT_VIDEO_UNLIKED,
             payload={
                 "video_id": str(video.id),
                 "user_id": str(user_id),
@@ -337,7 +338,7 @@ def add_comment(
         if parent is not None:
             VideoComment.objects.filter(id=parent.id).update(reply_count=F("reply_count") + 1)
         _emit(
-            event_type="content.VideoCommented",
+            event_type=types.CONTENT_VIDEO_COMMENTED,
             payload={
                 "video_id": str(video.id),
                 "comment_id": str(comment.id),
@@ -369,7 +370,7 @@ def track_share(
     Video.objects.filter(id=video.id).update(share_count=F("share_count") + 1)
     video.refresh_from_db(fields=["share_count"])
     _emit(
-        event_type="content.VideoShared",
+        event_type=types.CONTENT_VIDEO_SHARED,
         payload={
             "video_id": str(video.id),
             "channel": channel or None,
@@ -395,7 +396,7 @@ def track_view(
         Video.objects.filter(id=video.id).update(view_count=F("view_count") + 1)
         video.refresh_from_db(fields=["view_count"])
         _emit(
-            event_type="content.VideoViewed",
+            event_type=types.CONTENT_VIDEO_VIEWED,
             payload={"video_id": str(video.id), "occurred_at": _iso(_now())},
             idempotency_key=f"content_video_viewed:{dedup_key}",
             actor_id=str(user_id) if user_id else None,
@@ -486,7 +487,7 @@ def create_video(
             access_type=access_type,
         )
         _emit(
-            event_type="content.VideoCreated",
+            event_type=types.CONTENT_VIDEO_CREATED,
             payload={
                 "video_id": str(video.id),
                 "owner_user_id": str(user_id),
@@ -542,7 +543,7 @@ def update_my_video(*, user_id: str, video_id: str, **fields: Any) -> dict[str, 
             setattr(video, key, value)
         video.save()
         _emit(
-            event_type="content.VideoUpdated",
+            event_type=types.CONTENT_VIDEO_UPDATED,
             payload={"video_id": str(video.id), "occurred_at": _iso(_now())},
             idempotency_key=f"content_video_updated:{video.id}:{_now().timestamp()}",
             actor_id=str(user_id),
@@ -559,7 +560,7 @@ def delete_my_video(*, user_id: str, video_id: str) -> None:
         video.is_active = False
         video.save(update_fields=["is_active", "updated_at"])
         _emit(
-            event_type="content.VideoDeleted",
+            event_type=types.CONTENT_VIDEO_DELETED,
             payload={"video_id": str(video.id), "occurred_at": _iso(_now())},
             idempotency_key=f"content_video_deleted:{video.id}",
             actor_id=str(user_id),
@@ -573,7 +574,7 @@ def regenerate_thumbnail(
     transcoding (V3); for now this records the request and returns the video."""
     video = _owned_video(user_id, video_id)
     _emit(
-        event_type="content.VideoUpdated",
+        event_type=types.CONTENT_VIDEO_UPDATED,
         payload={
             "video_id": str(video.id),
             "thumbnail_offset_seconds": time_offset_seconds,
