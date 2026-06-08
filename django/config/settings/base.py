@@ -290,7 +290,12 @@ COMMERCE_ORDER_TTL_SECONDS = int(os.environ.get("COMMERCE_ORDER_TTL_SECONDS", st
 # gRPC services
 # ---------------------------------------------------------------------------
 GRPC_NOTIFICATION_ADDRESS = os.environ.get("GRPC_NOTIFICATION_ADDRESS", "localhost:50051")
+GRPC_LIVE_RUNTIME_ADDRESS = os.environ.get("GRPC_LIVE_RUNTIME_ADDRESS", "localhost:50053")
 GRPC_TIMEOUT_SECONDS = float(os.environ.get("GRPC_TIMEOUT_SECONDS", "3"))
+
+# When false (default), apps/content/live/runtime.py runs in fake mode and the
+# live stream lifecycle works without a running Live Runtime gRPC service.
+LIVE_RUNTIME_ENABLED = os.environ.get("LIVE_RUNTIME_ENABLED", "").lower() in {"1", "true", "yes"}
 
 # When false (default in dev/test), notification event handlers no-op instead of
 # making a gRPC call to a Notification service that isn't running. Enable in
