@@ -33,6 +33,7 @@ dependencies = [
     "cryptography>=42.0",
     "dj-database-url>=2.1",
     "stripe>=9.0",
+    "drf-spectacular>=0.27",
 ]
 
 [project.optional-dependencies]

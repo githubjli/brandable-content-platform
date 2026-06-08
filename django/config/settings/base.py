@@ -43,6 +43,7 @@ DJANGO_APPS = [
 THIRD_PARTY_APPS = [
     "rest_framework",
     "corsheaders",
+    "drf_spectacular",
 ]
 
 LOCAL_APPS = [
@@ -202,6 +203,25 @@ REST_FRAMEWORK = {
         "rest_framework.parsers.FormParser",
     ],
     "EXCEPTION_HANDLER": "libs.errors.handlers.exception_handler",
+    # OpenAPI schema generation (drf-spectacular). Served at /api/v1/schema/.
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+# ---------------------------------------------------------------------------
+# OpenAPI schema (drf-spectacular) — powers /api/v1/schema/ + Swagger/Redoc UIs,
+# and lets mobile clients (e.g. Flutter via openapi-generator) codegen models.
+# ---------------------------------------------------------------------------
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Brandable Content Platform API",
+    "DESCRIPTION": (
+        "REST API for the brandable content platform "
+        "(identity, economy, payments, content, commerce, membership). "
+        "JWT (RS256) bearer auth; cursor pagination; Idempotency-Key on creates."
+    ),
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,  # don't expose the schema endpoint inside the schema
+    "SCHEMA_PATH_PREFIX": r"/api/v1",
+    "COMPONENT_SPLIT_REQUEST": True,
 }
 
 # ---------------------------------------------------------------------------
