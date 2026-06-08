@@ -116,6 +116,7 @@ def serialize_series(
     is_following: bool = False,
     is_favorited: bool = False,
     continue_card: dict | None = None,
+    gift_amount: str = "0.0000",
 ) -> dict[str, Any]:
     locked = max(series.total_episodes - series.free_episodes, 0)
     return {
@@ -140,7 +141,7 @@ def serialize_series(
             "favorite": series.favorite_count,
             "comment": series.comment_count,
             "share": series.share_count,
-            "gift_amount": "0.0000",
+            "gift_amount": gift_amount,
             "gift_currency": "MP",
         },
         "viewer_context": {
@@ -184,6 +185,7 @@ def series_queryset(*, category: str | None = None):
 
 
 def serialize_series_list(series_list: list[DramaSeries], viewer_id: str | None = None):
+    from apps.content.gift.services import TARGET_DRAMA_SERIES, gift_totals
     from apps.identity.services import following_ids, public_profiles
 
     owner_ids = [str(s.owner_user_id) for s in series_list]
@@ -192,6 +194,9 @@ def serialize_series_list(series_list: list[DramaSeries], viewer_id: str | None 
     following = following_ids(viewer_id, owner_ids)
     favorited = _favorited_series_ids(viewer_id, series_ids)
     continues = _continue_cards(viewer_id, series_ids)
+    gifts = gift_totals(
+        target_type=TARGET_DRAMA_SERIES, target_ids=[str(s.id) for s in series_list]
+    )
     return [
         serialize_series(
             s,
@@ -199,6 +204,7 @@ def serialize_series_list(series_list: list[DramaSeries], viewer_id: str | None 
             is_following=str(s.owner_user_id) in following,
             is_favorited=str(s.id) in favorited,
             continue_card=continues.get(str(s.id)),
+            gift_amount=gifts.get(str(s.id), "0.0000"),
         )
         for s in series_list
     ]
@@ -227,6 +233,7 @@ def gift_target(series_id: str) -> str:
 
 
 def get_series(*, series_id: str, viewer_id: str | None = None) -> dict[str, Any]:
+    from apps.content.gift.services import TARGET_DRAMA_SERIES, gift_totals
     from apps.identity.services import following_ids, public_profiles
 
     series = _get_active_series(series_id)
@@ -234,12 +241,14 @@ def get_series(*, series_id: str, viewer_id: str | None = None) -> dict[str, Any
     following = following_ids(viewer_id, [str(series.owner_user_id)])
     favorited = _favorited_series_ids(viewer_id, [series.id])
     continues = _continue_cards(viewer_id, [series.id])
+    gifts = gift_totals(target_type=TARGET_DRAMA_SERIES, target_ids=[str(series.id)])
     return serialize_series(
         series,
         owner=owner,
         is_following=str(series.owner_user_id) in following,
         is_favorited=str(series.id) in favorited,
         continue_card=continues.get(str(series.id)),
+        gift_amount=gifts.get(str(series.id), "0.0000"),
     )
 
 

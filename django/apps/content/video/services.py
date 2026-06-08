@@ -124,6 +124,7 @@ def serialize_video(
     is_liked: bool = False,
     is_following: bool = False,
     detail: bool = False,
+    gift_amount: str = "0.0000",
 ) -> dict[str, Any]:
     data: dict[str, Any] = {
         "id": str(video.id),
@@ -146,7 +147,7 @@ def serialize_video(
             "like": video.like_count,
             "comment": video.comment_count,
             "share": video.share_count,
-            "gift_amount": "0.0000",
+            "gift_amount": gift_amount,
             "gift_currency": "MP",
         },
         "viewer_context": {
@@ -163,18 +164,21 @@ def serialize_video(
 
 def serialize_videos(videos: list[Video], viewer_id: str | None = None) -> list[dict[str, Any]]:
     """Serialize a video page with batched owner cards, liked set, and follow set."""
+    from apps.content.gift.services import TARGET_VIDEO, gift_totals
     from apps.identity.services import following_ids, public_profiles
 
     owner_ids = [str(v.owner_user_id) for v in videos]
     owners = public_profiles(owner_ids)
     liked = _liked_video_ids(viewer_id, [v.id for v in videos])
     following = following_ids(viewer_id, owner_ids)
+    gifts = gift_totals(target_type=TARGET_VIDEO, target_ids=[str(v.id) for v in videos])
     return [
         serialize_video(
             v,
             owner=owners.get(str(v.owner_user_id)),
             is_liked=str(v.id) in liked,
             is_following=str(v.owner_user_id) in following,
+            gift_amount=gifts.get(str(v.id), "0.0000"),
         )
         for v in videos
     ]
@@ -199,27 +203,32 @@ def videos_queryset(
 
 
 def get_video(*, video_id: str, viewer_id: str | None = None) -> dict[str, Any]:
+    from apps.content.gift.services import TARGET_VIDEO, gift_totals
     from apps.identity.services import following_ids, public_profiles
 
     video = _get_active_video(video_id)
     owner = public_profiles([str(video.owner_user_id)]).get(str(video.owner_user_id))
     liked = _liked_video_ids(viewer_id, [video.id])
     following = following_ids(viewer_id, [str(video.owner_user_id)])
+    gifts = gift_totals(target_type=TARGET_VIDEO, target_ids=[str(video.id)])
     return serialize_video(
         video,
         owner=owner,
         is_liked=str(video.id) in liked,
         is_following=str(video.owner_user_id) in following,
         detail=True,
+        gift_amount=gifts.get(str(video.id), "0.0000"),
     )
 
 
 def get_interactions(*, video_id: str, viewer_id: str | None = None) -> dict[str, Any]:
+    from apps.content.gift.services import TARGET_VIDEO, gift_totals
     from apps.identity.services import follower_count, following_ids
 
     video = _get_active_video(video_id)
     liked = _liked_video_ids(viewer_id, [video.id])
     following = following_ids(viewer_id, [str(video.owner_user_id)])
+    gifts = gift_totals(target_type=TARGET_VIDEO, target_ids=[str(video.id)])
     return {
         "video_id": str(video.id),
         "counts": {
@@ -227,7 +236,7 @@ def get_interactions(*, video_id: str, viewer_id: str | None = None) -> dict[str
             "like": video.like_count,
             "comment": video.comment_count,
             "share": video.share_count,
-            "gift_amount": "0.0000",
+            "gift_amount": gifts.get(str(video.id), "0.0000"),
             "gift_currency": "MP",
         },
         "viewer_context": {
