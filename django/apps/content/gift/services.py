@@ -15,6 +15,7 @@ from typing import Any
 
 from django.db import transaction
 
+from apps.events import types
 from libs.errors.exceptions import UnprocessableError, ValidationError
 
 from .models import GiftCatalogItem, GiftTransaction
@@ -30,10 +31,10 @@ TARGET_VIDEO = GiftTransaction.VIDEO
 TARGET_DRAMA_SERIES = GiftTransaction.DRAMA_SERIES
 TARGET_LIVE_STREAM = GiftTransaction.LIVE_STREAM
 _TARGET_EVENT = {
-    GiftTransaction.VIDEO: "content.VideoGifted",
-    GiftTransaction.DRAMA_SERIES: "content.DramaGifted",
+    GiftTransaction.VIDEO: types.CONTENT_VIDEO_GIFTED,
+    GiftTransaction.DRAMA_SERIES: types.CONTENT_DRAMA_GIFTED,
     # Live gifts emit the live broadcast event so the runtime relays them to viewers.
-    GiftTransaction.LIVE_STREAM: "content.live.GiftSent",
+    GiftTransaction.LIVE_STREAM: types.CONTENT_LIVE_GIFT_SENT,
 }
 
 
