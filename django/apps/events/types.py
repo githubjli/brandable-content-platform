@@ -85,6 +85,15 @@ CONTENT_VIDEO_COMMENTED = "content.VideoCommented"
 CONTENT_VIDEO_SHARED = "content.VideoShared"
 CONTENT_VIDEO_VIEWED = "content.VideoViewed"
 
+# Content — drama (V2 unlock + engagement)
+CONTENT_DRAMA_EPISODE_UNLOCKED = "content.DramaEpisodeUnlocked"
+CONTENT_DRAMA_SERIES_FAVORITED = "content.DramaSeriesFavorited"
+CONTENT_DRAMA_SERIES_UNFAVORITED = "content.DramaSeriesUnfavorited"
+CONTENT_DRAMA_PROGRESS_UPDATED = "content.DramaProgressUpdated"
+CONTENT_DRAMA_SERIES_COMMENTED = "content.DramaSeriesCommented"
+CONTENT_DRAMA_SERIES_VIEWED = "content.DramaSeriesViewed"
+CONTENT_DRAMA_SERIES_SHARED = "content.DramaSeriesShared"
+
 # Content — gift (V2; cross video/drama)
 CONTENT_VIDEO_GIFTED = "content.VideoGifted"
 CONTENT_DRAMA_GIFTED = "content.DramaGifted"

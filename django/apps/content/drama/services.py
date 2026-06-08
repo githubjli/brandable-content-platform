@@ -16,6 +16,7 @@ from django.db import transaction
 from django.db.models import F, Value
 from django.db.models.functions import Greatest
 
+from apps.events import types
 from libs.errors.exceptions import NotFoundError, UnprocessableError, ValidationError
 
 from .models import (
@@ -424,7 +425,7 @@ def unlock_episode(*, user_id: str, episode_id: str, payment_method: str) -> dic
             ledger_entry_id=ledger["id"],
         )
         _emit(
-            event_type="content.DramaEpisodeUnlocked",
+            event_type=types.CONTENT_DRAMA_EPISODE_UNLOCKED,
             payload={
                 "episode_id": str(episode.id),
                 "series_id": str(episode.series_id),
@@ -452,7 +453,7 @@ def add_favorite(*, user_id: str, series_id: str) -> dict[str, Any]:
         DramaSeries.objects.filter(id=series.id).update(favorite_count=F("favorite_count") + 1)
         series.refresh_from_db(fields=["favorite_count"])
         _emit(
-            event_type="content.DramaSeriesFavorited",
+            event_type=types.CONTENT_DRAMA_SERIES_FAVORITED,
             payload={
                 "series_id": str(series.id),
                 "user_id": str(user_id),
@@ -477,7 +478,7 @@ def remove_favorite(*, user_id: str, series_id: str) -> dict[str, Any]:
         )
         series.refresh_from_db(fields=["favorite_count"])
         _emit(
-            event_type="content.DramaSeriesUnfavorited",
+            event_type=types.CONTENT_DRAMA_SERIES_UNFAVORITED,
             payload={
                 "series_id": str(series.id),
                 "user_id": str(user_id),
@@ -539,7 +540,7 @@ def upsert_progress(
         )
         progress.episode = episode  # ensure select_related-free serialize is correct
         _emit(
-            event_type="content.DramaProgressUpdated",
+            event_type=types.CONTENT_DRAMA_PROGRESS_UPDATED,
             payload={
                 "series_id": str(series.id),
                 "episode_id": str(episode.id),
@@ -635,7 +636,7 @@ def add_comment(
         if parent is not None:
             DramaComment.objects.filter(id=parent.id).update(reply_count=F("reply_count") + 1)
         _emit(
-            event_type="content.DramaSeriesCommented",
+            event_type=types.CONTENT_DRAMA_SERIES_COMMENTED,
             payload={
                 "series_id": str(series.id),
                 "comment_id": str(comment.id),
@@ -667,7 +668,7 @@ def track_view(
         DramaSeries.objects.filter(id=series.id).update(view_count=F("view_count") + 1)
         series.refresh_from_db(fields=["view_count"])
         _emit(
-            event_type="content.DramaSeriesViewed",
+            event_type=types.CONTENT_DRAMA_SERIES_VIEWED,
             payload={"series_id": str(series.id), "occurred_at": _iso(_now())},
             idempotency_key=f"content_drama_viewed:{dedup_key}",
             actor_id=str(user_id) if user_id else None,
@@ -680,7 +681,7 @@ def track_share(*, series_id: str, user_id: str | None = None, channel: str = ""
     DramaSeries.objects.filter(id=series.id).update(share_count=F("share_count") + 1)
     series.refresh_from_db(fields=["share_count"])
     _emit(
-        event_type="content.DramaSeriesShared",
+        event_type=types.CONTENT_DRAMA_SERIES_SHARED,
         payload={
             "series_id": str(series.id),
             "channel": channel or None,
